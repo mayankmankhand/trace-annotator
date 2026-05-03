@@ -59,7 +59,7 @@ function ensureObjectRows(
   return { ok: true, rows };
 }
 
-export function Wizard({ onDone }: { onDone: (traces: Trace[]) => void }) {
+export function Wizard({ onDone }: { onDone: (traces: Trace[], filename: string) => void }) {
   const [step, setStep] = useState<Step>("drop");
   const [error, setError] = useState<string | null>(null);
   const [source, setSource] = useState<LoadedSource | null>(null);
@@ -175,14 +175,14 @@ export function Wizard({ onDone }: { onDone: (traces: Trace[]) => void }) {
   }
 
   function handleConfirmDone() {
-    if (!traces || !mapping) return;
+    if (!traces || !mapping || !source) return;
     const config: WizardConfig = { ...mapping, savedAt: new Date().toISOString() };
     fetch("/api/config", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ config }),
     }).catch(() => {});
-    onDone(traces);
+    onDone(traces, source.filename);
   }
 
   return (
