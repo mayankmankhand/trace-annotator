@@ -22,7 +22,7 @@ import { DropZone } from "./DropZone";
 import { MappingStep } from "./MappingStep";
 import { PreviewStep } from "./PreviewStep";
 
-type Step = "drop" | "mapping" | "preview" | "done";
+type Step = "drop" | "mapping" | "preview";
 
 type LoadedSource = {
   filename: string;
@@ -58,7 +58,7 @@ function ensureObjectRows(
   return { ok: true, rows };
 }
 
-export function Wizard() {
+export function Wizard({ onDone }: { onDone: (traces: Trace[]) => void }) {
   const [step, setStep] = useState<Step>("drop");
   const [error, setError] = useState<string | null>(null);
   const [source, setSource] = useState<LoadedSource | null>(null);
@@ -226,36 +226,8 @@ export function Wizard() {
               setError(null);
               setStep("mapping");
             }}
-            onConfirm={() => setStep("done")}
+            onConfirm={() => onDone(traces)}
           />
-        )}
-
-        {step === "done" && traces && (
-          <div className="space-y-3 text-center py-4">
-            <p className="text-base font-medium text-gray-900">
-              Loaded {traces.length} {traces.length === 1 ? "trace" : "traces"}
-              {source ? ` from ${source.filename}` : ""}.
-            </p>
-            <p className="text-sm text-gray-600">
-              The labeling view is the next milestone. Watch the{" "}
-              <a
-                href="https://github.com/mayankmankhand/Observability/issues"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-600 underline"
-              >
-                open issues
-              </a>{" "}
-              for progress.
-            </p>
-            <button
-              type="button"
-              onClick={reset}
-              className="text-sm text-blue-600 hover:underline"
-            >
-              Load another file
-            </button>
-          </div>
         )}
       </div>
     </div>
@@ -263,7 +235,7 @@ export function Wizard() {
 }
 
 function StepIndicator({ current }: { current: Step }) {
-  const currentIdx = current === "done" ? STEPS.length : STEPS.findIndex((s) => s.id === current);
+  const currentIdx = STEPS.findIndex((s) => s.id === current);
   return (
     <ol aria-label="Wizard progress" className="flex gap-3 text-xs text-gray-500">
       {STEPS.map((s, i) => {
