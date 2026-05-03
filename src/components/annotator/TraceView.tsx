@@ -6,6 +6,13 @@ import type { LabelRow } from "@/lib/labels/types";
 import { serialize, mimeType, fileName } from "@/lib/labels/serialize";
 import { TraceRenderer } from "@/components/renderer/TraceRenderer";
 import { TagPanel } from "./TagPanel";
+import {
+  CoachingTip,
+  dismissCoachingPermanent,
+  dismissCoachingSession,
+  isCoachingActive,
+  resetCoaching,
+} from "./CoachingTip";
 
 export type Verdict = "pass" | "fail";
 export type Annotation = {
@@ -58,6 +65,7 @@ export function TraceView({
 }: Props) {
   const [index, setIndex] = useState(initialIndex);
   const [annotations, setAnnotations] = useState<Annotations>(initialAnnotations);
+  const [coachingActive, setCoachingActive] = useState(() => isCoachingActive());
   const [allTags, setAllTags] = useState<string[]>(() => {
     const tagSet = new Set<string>();
     for (const a of Object.values(initialAnnotations)) {
@@ -270,7 +278,21 @@ export function TraceView({
             {labeledCount} of {total} labeled
           </p>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-2">
+          {!coachingActive && (
+            <button
+              type="button"
+              onClick={() => {
+                resetCoaching();
+                setCoachingActive(true);
+              }}
+              aria-label="Show coaching tips"
+              title="Restart coaching tips"
+              className="text-xs text-gray-400 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded px-1"
+            >
+              ? tips
+            </button>
+          )}
           <ExportButton onExport={handleExport} disabled={labeledCount === 0} />
         </div>
       </header>
@@ -313,6 +335,20 @@ export function TraceView({
               </span>
             ))}
           </div>
+
+          {coachingActive && (
+            <CoachingTip
+              traceIndex={index}
+              onSessionDismiss={() => {
+                dismissCoachingSession();
+                setCoachingActive(false);
+              }}
+              onPermanentDismiss={() => {
+                dismissCoachingPermanent();
+                setCoachingActive(false);
+              }}
+            />
+          )}
 
           <TraceRenderer trace={trace} collapseSystem />
 
