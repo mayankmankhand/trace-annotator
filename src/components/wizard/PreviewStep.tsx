@@ -1,15 +1,60 @@
 "use client";
 
 import type { Trace } from "@/lib/trace/types";
+import type { EnvelopeKey } from "@/lib/trace/parse";
 import { TraceRenderer } from "@/components/renderer/TraceRenderer";
 
 type Props = {
   traces: Trace[];
+  envelopeKey: EnvelopeKey | null;
+  usedNestedMessages: boolean;
+  autoRecognized: boolean;
   onBack: () => void;
   onConfirm: () => void;
 };
 
-export function PreviewStep({ traces, onBack, onConfirm }: Props) {
+// ConfidenceBanner explains what the wizard auto-detected so the user can
+// validate it before committing. Phrased as a question to invite correction.
+// Skipped entirely when the user reached preview via manual mapping (no
+// auto-detection happened).
+function ConfidenceBanner({
+  count,
+  envelopeKey,
+  usedNestedMessages,
+}: {
+  count: number;
+  envelopeKey: EnvelopeKey | null;
+  usedNestedMessages: boolean;
+}) {
+  const parts: string[] = [];
+  if (envelopeKey) parts.push(`a "${envelopeKey}" wrapper`);
+  if (usedNestedMessages) parts.push("a nested messages[] array");
+  const pieces = parts.length > 0 ? ` using ${parts.join(" and ")}` : "";
+  return (
+    <div
+      role="status"
+      className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm"
+    >
+      <p className="font-medium text-blue-900">
+        Found {count} {count === 1 ? "trace" : "traces"}
+        {pieces}. Does this look right?
+      </p>
+      <p className="text-xs text-blue-800 mt-1">
+        Confirm the first trace below renders the way you expect, then click
+        Confirm. Otherwise, go back and adjust the field mapping.
+      </p>
+    </div>
+  );
+}
+
+export function PreviewStep({
+  traces,
+  envelopeKey,
+  usedNestedMessages,
+  autoRecognized,
+  onBack,
+  onConfirm,
+}: Props) {
   const first = traces[0];
 
   if (!first) {
@@ -45,6 +90,14 @@ export function PreviewStep({ traces, onBack, onConfirm }: Props) {
           rendered the way the labeling view will show it.
         </p>
       </div>
+
+      {autoRecognized && (
+        <ConfidenceBanner
+          count={traces.length}
+          envelopeKey={envelopeKey}
+          usedNestedMessages={usedNestedMessages}
+        />
+      )}
 
       <TraceRenderer trace={first} />
 

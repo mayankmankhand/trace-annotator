@@ -18,9 +18,9 @@
 
 **Public repo, BYO data.** No real trace data is ever committed. Synthetic fixtures only. Real data paths are gitignored by default.
 
-### v1 scope (in)
+### v1 scope (shipped)
 1. Bootstrap Next.js skeleton
-2. Trace input loader with guided wizard (JSONL / JSON / CSV auto-detect; adapter.ts deferred to v1.5 per issue #16)
+2. Trace input loader with guided wizard (JSONL / JSON / CSV auto-detect)
 3. Native rendering for chat / email / generic outputs (with JSON-on-demand)
 4. Single-trace view with progressive disclosure
 5. Pass/fail labeling and keyboard hot keys
@@ -32,11 +32,33 @@
 11. Synthetic fixture data (user-provided)
 12. Onboarding / first-run inline coaching
 
-### v2 scope (deferred, do not re-litigate)
-- Similarity highlighting (req 10 in original `text` doc)
-- Side-effect verification (req 9)
-- Batch labeling (req 11)
-- SQLite storage option
+### v2.0 scope (shipped, see plans/PLAN-v2-launch.md)
+- Wizard robustness (envelope unwrap, nested messages, manual mapping fallback, large-file warning)
+- Save and persistence model (IndexedDB primary, manual JSONL/CSV export). See [docs/save-model.md](docs/save-model.md).
+- Coaching teaching arc (5 first-run cards + milestone cards). See [docs/coaching-arc.md](docs/coaching-arc.md).
+- Template-driven failure-mode tag seeding (Chatbot / RAG / Summarizer / Generic)
+- Undo history with Cmd/Ctrl+Z + per-label audit log
+- Trace context display (metadata strip, richer resume warning)
+- Tag management (rename, merge, delete - flat tags only in v2.0)
+- Trace navigation, filter, random sampling
+- Skip control + hotkey remapping
+- Visual polish (Inter font, logo, favicon)
+- AGENT-SETUP.md for AI-assisted install
+
+### v2.1 scope
+- Batch labeling (#36) - deferred after wedge concern (premature taxonomy lock-in)
+- Tag hierarchy reconsidered
+
+### v3 scope (deferred, do not re-litigate for v2.x)
+- Power-user analysis: similarity highlighting + side-effect verification (#37)
+- Adapter pattern (adapter.ts) for power users (#16)
+- Braintrust export (#17)
+- SQLite storage backend (#32)
+- External platform integrations (#33)
+- Multi-format rendering (image, audio, video) (#34)
+- Time-based progress estimation (#42)
+- LLM judge training pipeline (#44)
+- Alternate distribution shapes (CLI, notebook widget) (#45)
 
 ### Explicitly rejected
 - Requirement 5.4 ("no hard and fast rules"). For a beginner-targeted tool, hard and fast rules are a feature, not a limitation. We pick defaults and ship them.
