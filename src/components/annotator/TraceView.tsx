@@ -88,6 +88,10 @@ type Props = {
   onReset: () => void;
   initialAnnotations?: Annotations;
   initialIndex?: number;
+  // Set when AppShell's initial IndexedDB load failed (private browsing,
+  // quota, etc.). The save indicator pivots to a persistent error so the
+  // user knows to export often instead of trusting autosave.
+  storageUnavailable?: boolean;
 };
 
 export function TraceView({
@@ -97,11 +101,20 @@ export function TraceView({
   onReset,
   initialAnnotations = {},
   initialIndex = 0,
+  storageUnavailable = false,
 }: Props) {
   const [index, setIndex] = useState(initialIndex);
   const [annotations, setAnnotations] = useState<Annotations>(initialAnnotations);
   const [coachingActive, setCoachingActive] = useState(() => isCoachingActive());
-  const [saveStatus, setSaveStatus] = useState<SaveStatus>({ kind: "idle" });
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>(
+    storageUnavailable
+      ? {
+          kind: "error",
+          message:
+            "Browser storage is unavailable. Your labels won't persist across reloads. Export often to keep your work.",
+        }
+      : { kind: "idle" },
+  );
   // Milestone state is per-trace-index. We reload it any time the index
   // changes so the user gets the milestone exactly when they hit that trace.
   const [milestone, setMilestone] = useState(() =>
