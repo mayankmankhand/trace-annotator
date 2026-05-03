@@ -1,0 +1,34 @@
+{
+  "records": [
+    {
+      "case_id": "amb_001",
+      "submission_body": "Why is the sky blue?",
+      "system_reply": "Sunlight contains all colors. When it hits Earth's atmosphere, the shorter blue wavelengths scatter more than longer red ones, so the sky looks blue."
+    },
+    {
+      "case_id": "amb_002",
+      "submission_body": "Summarize the plot of Hamlet in two sentences.",
+      "system_reply": "Prince Hamlet of Denmark learns from his father's ghost that his uncle Claudius murdered him to take the throne. Hamlet's hesitation to act leads to a chain of deaths that includes nearly every major character."
+    },
+    {
+      "case_id": "amb_003",
+      "submission_body": "What's the capital of Australia?",
+      "system_reply": "The capital of Australia is Sydney."
+    },
+    {
+      "case_id": "amb_004",
+      "submission_body": "Convert 100 USD to EUR.",
+      "system_reply": "Approximately 92 EUR at recent exchange rates."
+    },
+    {
+      "case_id": "amb_005",
+      "submission_body": "Write a haiku about coffee.",
+      "system_reply": "Steam rises slowly\nDark warmth fills the morning cup\nThe day can begin."
+    },
+    {
+      "case_id": "amb_006",
+      "submission_body": "Is 2 plus 2 equal to 5?",
+      "system_reply": "No, 2 + 2 = 4. 2 + 2 = 5 only in jokes or in dystopian fiction (e.g. Orwell's 1984)."
+    }
+  ]
+}

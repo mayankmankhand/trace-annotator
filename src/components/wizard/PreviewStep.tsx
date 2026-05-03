@@ -1,14 +1,60 @@
 "use client";
 
-import type { Message, Trace } from "@/lib/trace/types";
+import type { Trace } from "@/lib/trace/types";
+import type { EnvelopeKey } from "@/lib/trace/parse";
+import { TraceRenderer } from "@/components/renderer/TraceRenderer";
 
 type Props = {
   traces: Trace[];
+  envelopeKey: EnvelopeKey | null;
+  usedNestedMessages: boolean;
+  autoRecognized: boolean;
   onBack: () => void;
   onConfirm: () => void;
 };
 
-export function PreviewStep({ traces, onBack, onConfirm }: Props) {
+// ConfidenceBanner explains what the wizard auto-detected so the user can
+// validate it before committing. Phrased as a question to invite correction.
+// Skipped entirely when the user reached preview via manual mapping (no
+// auto-detection happened).
+function ConfidenceBanner({
+  count,
+  envelopeKey,
+  usedNestedMessages,
+}: {
+  count: number;
+  envelopeKey: EnvelopeKey | null;
+  usedNestedMessages: boolean;
+}) {
+  const parts: string[] = [];
+  if (envelopeKey) parts.push(`a "${envelopeKey}" wrapper`);
+  if (usedNestedMessages) parts.push("a nested messages[] array");
+  const pieces = parts.length > 0 ? ` using ${parts.join(" and ")}` : "";
+  return (
+    <div
+      role="status"
+      className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm"
+    >
+      <p className="font-medium text-blue-900">
+        Found {count} {count === 1 ? "trace" : "traces"}
+        {pieces}. Does this look right?
+      </p>
+      <p className="text-xs text-blue-800 mt-1">
+        Confirm the first trace below renders the way you expect, then click
+        Confirm. Otherwise, go back and adjust the field mapping.
+      </p>
+    </div>
+  );
+}
+
+export function PreviewStep({
+  traces,
+  envelopeKey,
+  usedNestedMessages,
+  autoRecognized,
+  onBack,
+  onConfirm,
+}: Props) {
   const first = traces[0];
 
   if (!first) {
@@ -45,23 +91,15 @@ export function PreviewStep({ traces, onBack, onConfirm }: Props) {
         </p>
       </div>
 
-      <div className="space-y-3">
-        {first.input.map((m, i) => (
-          <Bubble key={`in-${i}`} message={m} />
-        ))}
-        {first.output.map((m, i) => (
-          <Bubble key={`out-${i}`} message={m} />
-        ))}
-      </div>
+      {autoRecognized && (
+        <ConfidenceBanner
+          count={traces.length}
+          envelopeKey={envelopeKey}
+          usedNestedMessages={usedNestedMessages}
+        />
+      )}
 
-      <details className="rounded border bg-gray-50 text-xs">
-        <summary className="cursor-pointer px-3 py-2 text-gray-700 select-none">
-          View raw JSON
-        </summary>
-        <pre className="max-h-64 overflow-auto px-3 pb-3 font-mono text-gray-800">
-          {JSON.stringify(first, null, 2)}
-        </pre>
-      </details>
+      <TraceRenderer trace={first} />
 
       <div className="flex justify-between pt-4 border-t">
         <button
@@ -78,30 +116,6 @@ export function PreviewStep({ traces, onBack, onConfirm }: Props) {
         >
           Confirm
         </button>
-      </div>
-    </div>
-  );
-}
-
-function Bubble({ message }: { message: Message }) {
-  const isUser = message.role === "user";
-  return (
-    <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
-      <div
-        className={`max-w-full rounded-lg px-4 py-3 text-sm whitespace-pre-wrap break-words ${
-          isUser
-            ? "bg-blue-600 text-white"
-            : "bg-gray-100 text-gray-900 border border-gray-200"
-        }`}
-      >
-        <div
-          className={`text-[10px] uppercase tracking-wide mb-1 ${
-            isUser ? "text-blue-100" : "text-gray-500"
-          }`}
-        >
-          {message.role}
-        </div>
-        <div className="max-h-72 overflow-auto">{message.content}</div>
       </div>
     </div>
   );

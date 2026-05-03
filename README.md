@@ -1,36 +1,27 @@
 # Trace Annotator
 
-An opinionated, open-source local web app for reviewing LLM (large language model) outputs and labeling what worked and what did not. Built for new product managers starting with evals.
+An opinionated, open-source local web app for reviewing LLM outputs and labeling what worked and what did not. Built for new PMs starting with evals.
+
+**v2.0** ships the hero feature: drop your real (messy) trace file into the wizard and the app figures it out, then teaches the method as you label.
 
 ## What it does
 
-When you ship an LLM-powered feature, you need to look at lots of real outputs to spot the patterns of where it goes wrong. Trace Annotator gives you a clean keyboard-driven loop for doing that:
+When you ship an LLM-powered feature, you need to look at lots of real outputs to spot the patterns of where it goes wrong. Trace Annotator gives you a keyboard-driven loop for doing that:
 
-- Load your **LLM traces** (the recorded prompt, model output, and metadata for each call your app made) from a JSONL, JSON, or CSV file. A guided wizard maps your file's fields to the tool's internal trace shape, with no code editing required.
-- Read each one rendered the way the end user would see it (chat bubble, email, etc.) instead of as a raw JSON blob.
-- Mark it pass or fail and add a short reason. Reuse reasons you have used before so they accumulate into a list of failure modes.
-- Export your labels as JSONL and feed them into an evaluator, a fine-tune, or a writeup.
+- **Load** your traces from JSONL, JSON, or CSV. The wizard auto-detects common shapes (`{"traces": [...]}`, `{"data": [...]}`, `{"records": [...]}`, bare arrays, JSONL) plus nested `messages[]` chats with `tool_calls`. If it can't guess, it routes you to a manual mapping step.
+- **Render** each trace the way the end user would see it (chat bubbles, email, tool-call cards) instead of raw JSON.
+- **Label** pass or fail with one keystroke. Add free-text tags (`P` pass, `F` fail, `S` skip, arrows to navigate, `Cmd/Ctrl+Z` to undo).
+- **Export** your labels as JSONL or CSV when you're done.
 
-This kind of structured review is sometimes called **open coding** (writing free-text notes on each example) and **error analysis** (looking for the recurring patterns those notes reveal). The tool helps you do both without leaving the keyboard.
+This kind of structured review is **open coding** (free-text notes on each example) and **error analysis** (finding the recurring patterns those notes reveal). The tool helps you do both without leaving the keyboard.
 
 ## Why this exists
 
-Most existing labeling tools assume you already know how to do error analysis. This one is built to teach the method as you use it, so a PM doing their first eval pass can be productive on day one.
+Most existing labeling tools assume you already know how to do error analysis. This one teaches the method as you use it, so a PM doing their first eval can be productive on day one. The first 5 traces show coaching cards that explain Pass/Fail, tags vs notes, reversibility, and why the tool deliberately doesn't give you a fixed taxonomy upfront.
 
-## Try it with sample data
+## Install
 
-The repo ships with two synthetic fixtures:
-
-- **`fixtures/sample-chat-traces.jsonl`** - 20 single-turn chat traces from a fictional travel booking assistant. Includes a mix of good responses and common failure modes (hallucinated facts, incomplete answers, overly verbose replies). Good for a first annotation session.
-- **`sample-data/recipe-chatbot-results.json`** - 100 recipe assistant traces, an existing JSON array. Drop this into the wizard to see a larger dataset.
-
-Drop either file into the wizard to see the loader and renderer work end to end without bringing your own data.
-
-## Bring your own data
-
-This is a BYO-data tool. Real trace data is never committed and is gitignored by default. The wizard reads your file in the browser; nothing is uploaded.
-
-## Try it
+The fastest path is to paste the [AGENT-SETUP.md](./AGENT-SETUP.md) file into Claude or ChatGPT and ask it to set up the app on your machine. Otherwise:
 
 ```bash
 git clone https://github.com/mayankmankhand/Observability.git
@@ -39,15 +30,29 @@ npm install
 npm run dev
 ```
 
-Then open http://localhost:3000 in your browser. The home page is the trace loader: drop a JSONL, JSON, or CSV file (or use the sample above) and walk the wizard. The labeling view itself is the next milestone, see [open issues](../../issues) for status.
+Open http://localhost:3000 and drop a file into the wizard. No file ready? Two synthetic fixtures ship with the repo:
 
-## Status
+- `fixtures/sample-chat-traces.jsonl` - 20 single-turn travel-assistant traces with deliberate failure modes (hallucinations, incompleteness, verbosity). Good for a first session.
+- `sample-data/recipe-chatbot-results.json` - 100 recipe-assistant traces. Larger dataset for sustained labeling.
 
-Pre-v1, active development. The full v1 build list lives in [open issues](../../issues).
+## Bring your own data
 
-### Roadmap (post-v1)
+BYO-data tool. Real trace data is never committed and is gitignored by default. Files are read in the browser; **nothing is uploaded anywhere**. Labels and session state live in your browser's IndexedDB - see [docs/save-model.md](./docs/save-model.md) for the full design.
 
-Deferred to a future release: similarity highlighting, side-effect verification, batch labeling, SQLite storage option.
+## What v2.0 includes
+
+- Wizard that handles real-world envelope shapes and nested chat with tool calls. See [docs/supported-inputs.md](./docs/supported-inputs.md).
+- Keyboard-first labeling loop with remappable hotkeys (Settings panel).
+- 5-card teaching arc + milestone cards at traces 25, 50, 100. See [docs/coaching-arc.md](./docs/coaching-arc.md).
+- Template-driven failure-mode tag suggestions (Chatbot / RAG / Summarizer / Generic).
+- Skip ("review later"), undo with Cmd/Ctrl+Z, per-label audit log.
+- Tag management (rename, merge, delete), filtered navigation, jump-to-trace, random sample.
+- IndexedDB autosave with visible save indicator. Manual JSONL/CSV export.
+
+## Roadmap
+
+- **v2.1:** post-launch review bundle (#49) - right-panel role clarification, modal a11y, state-freshness fixes for rapid keyboard labeling, native dialog replacement, coaching-arc polish. Full change list in [docs/ux-research-note.md](./docs/ux-research-note.md) §8.
+- **v3:** power-user analysis (similarity highlighting, side-effect verification), adapter pattern for power users, batch labeling (#36), multi-format rendering (image/audio/video), external platform integrations, SQLite storage backend, alternate distribution shapes (CLI, notebook widget), LLM judge training pipeline. See [open v3 issues](../../issues?q=is%3Aopen+label%3Av3).
 
 ## License
 

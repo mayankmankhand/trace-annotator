@@ -29,7 +29,7 @@
  *   - Designed for Linux/WSL environments
  *   - Expects simple .env.local format (KEY=value, no quotes needed)
  *   - Fail-fast philosophy with one transparent retry on transient errors
- *   - SDK version: @google/generative-ai ^0.24.x (supports systemInstruction)
+ *   - SDK version: @google/genai ^1.x (systemInstruction passed via config)
  */
 
 const fs = require('fs');
@@ -37,12 +37,35 @@ const path = require('path');
 
 /**
  * Load environment variables from .env.local
- * 
+ *
  * This is a simple implementation for learning purposes.
  * For production use, consider the 'dotenv' package which handles
  * more edge cases (quoted values, multiline, variable expansion).
+ *
+ * Resolution: walk upward from this script looking for the project root.
+ * The first directory with a `.env.local` OR a `.git` OR a `package.json`
+ * counts as root. This survives:
+ *   - the canonical install at `<project>/.claude/scripts/`
+ *   - dev runs from inside the toolkit repo
+ *   - symlinked installs (Node sets __dirname to the symlink target)
+ *   - worktrees that inherit the same layout
+ * If no marker is found within 6 levels we give up; .env.local is optional
+ * and the script continues with whatever's already in process.env.
  */
-const envPath = path.join(__dirname, '..', '..', '.env.local');
+function findEnvLocal(startDir) {
+  let dir = startDir;
+  for (let depth = 0; depth < 6; depth++) {
+    const candidate = path.join(dir, '.env.local');
+    if (fs.existsSync(candidate)) return candidate;
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  // Fallback to the canonical install location. The existsSync at the call
+  // site treats a missing file as "no env to load" without erroring.
+  return path.join(startDir, '..', '..', '.env.local');
+}
+const envPath = findEnvLocal(__dirname);
 if (fs.existsSync(envPath)) {
   const envContent = fs.readFileSync(envPath, 'utf-8');
   envContent.split('\n').forEach(line => {
@@ -52,7 +75,7 @@ if (fs.existsSync(envPath)) {
       return;
     }
     
-    const match = trimmedLine.match(/^([^=]+)=(.*)$/);
+    const match = trimmedLine.match(/^(?:export\s+)?([^=]+)=(.*)$/);
     if (match) {
       const key = match[1].trim();
       // Strip surrounding quotes (single or double) that some tutorials show
@@ -214,6 +237,9 @@ function parseArgs() {
       case '--help':
         printHelp();
         process.exit(0);
+      default:
+        console.error(`\n❌ Error: Unknown argument: ${args[i]}. Use --help to see options.`);
+        process.exit(1);
     }
   }
 
@@ -283,8 +309,8 @@ function readFile(filePath) {
 }
 
 /**
- * Initialize GoogleGenerativeAI client.
- * Creates the client once; call getModel() to get a model for a specific prompt.
+ * Initialize GoogleGenAI client.
+ * Creates the client once; call buildRequest() to assemble per-call params.
  */
 function initGemini() {
   const apiKey = process.env.GEMINI_API_KEY?.trim();
@@ -292,28 +318,30 @@ function initGemini() {
     throw new Error(ERR.MISSING_KEY);
   }
 
-  const { GoogleGenerativeAI } = require('@google/generative-ai');
-  return new GoogleGenerativeAI(apiKey);
+  const { GoogleGenAI } = require('@google/genai');
+  return new GoogleGenAI({ apiKey });
 }
 
 /**
- * Get a generative model from the client with the given system prompt.
- * Uses systemInstruction when available, unless fallback mode is enabled.
+ * Build the per-call request shape for client.models.generateContent.
+ * The new SDK has no separate model object; model name and config travel
+ * with each request. The caller adds `contents` per call.
+ * Uses systemInstruction in config unless fallback mode is enabled.
  */
-function getModel(client, systemPrompt) {
-  const modelConfig = {
-    model: CONFIG.model,
-    generationConfig: {
-      maxOutputTokens: CONFIG.maxTokens,
-    },
+function buildRequest(systemPrompt) {
+  const config = {
+    maxOutputTokens: CONFIG.maxTokens,
   };
 
   // Use systemInstruction unless fallback mode is enabled
   if (!CONFIG.useConcatPrompt && systemPrompt) {
-    modelConfig.systemInstruction = systemPrompt;
+    config.systemInstruction = systemPrompt;
   }
 
-  return client.getGenerativeModel(modelConfig);
+  return {
+    model: CONFIG.model,
+    config,
+  };
 }
 
 /**
@@ -329,10 +357,10 @@ function sleep(ms) {
  * Includes one transparent retry on transient errors.
  */
 async function callGemini(client, systemPrompt, userPrompt) {
-  const model = getModel(client, systemPrompt);
+  const { model, config } = buildRequest(systemPrompt);
 
   // Build the prompt based on mode
-  const prompt = CONFIG.useConcatPrompt
+  const contents = CONFIG.useConcatPrompt
     ? `${systemPrompt}\n\n---\n\n${userPrompt}`
     : userPrompt;
 
@@ -346,10 +374,9 @@ async function callGemini(client, systemPrompt, userPrompt) {
     }, 10000);
 
     try {
-      const result = await model.generateContent(prompt);
+      const response = await client.models.generateContent({ model, contents, config });
       clearTimeout(progressTimer);
-      const response = result.response;
-      const text = response.text();
+      const text = response.text;
 
       return typeof text === 'string' ? text.trim() : '';
     } catch (error) {

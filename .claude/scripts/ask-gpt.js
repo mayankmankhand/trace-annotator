@@ -22,7 +22,7 @@
  * 
  * Environment:
  *   OPENAI_API_KEY   Required for ChatGPT API calls
- *   GPT_MODEL        Optional model override (default: gpt-5.4)
+ *   GPT_MODEL        Optional model override (default: gpt-5.5)
  * 
  * Scope & Assumptions:
  *   - Designed for Linux/WSL environments
@@ -35,12 +35,35 @@ const path = require('path');
 
 /**
  * Load environment variables from .env.local
- * 
+ *
  * This is a simple implementation for learning purposes.
  * For production use, consider the 'dotenv' package which handles
  * more edge cases (quoted values, multiline, variable expansion).
+ *
+ * Resolution: walk upward from this script looking for the project root.
+ * The first directory with a `.env.local` OR a `.git` OR a `package.json`
+ * counts as root. This survives:
+ *   - the canonical install at `<project>/.claude/scripts/`
+ *   - dev runs from inside the toolkit repo
+ *   - symlinked installs (Node sets __dirname to the symlink target)
+ *   - worktrees that inherit the same layout
+ * If no marker is found within 6 levels we give up; .env.local is optional
+ * and the script continues with whatever's already in process.env.
  */
-const envPath = path.join(__dirname, '..', '..', '.env.local');
+function findEnvLocal(startDir) {
+  let dir = startDir;
+  for (let depth = 0; depth < 6; depth++) {
+    const candidate = path.join(dir, '.env.local');
+    if (fs.existsSync(candidate)) return candidate;
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  // Fallback to the canonical install location. The existsSync at the call
+  // site treats a missing file as "no env to load" without erroring.
+  return path.join(startDir, '..', '..', '.env.local');
+}
+const envPath = findEnvLocal(__dirname);
 if (fs.existsSync(envPath)) {
   const envContent = fs.readFileSync(envPath, 'utf-8');
   envContent.split('\n').forEach(line => {
@@ -50,7 +73,7 @@ if (fs.existsSync(envPath)) {
       return;
     }
     
-    const match = trimmedLine.match(/^([^=]+)=(.*)$/);
+    const match = trimmedLine.match(/^(?:export\s+)?([^=]+)=(.*)$/);
     if (match) {
       const key = match[1].trim();
       // Strip surrounding quotes (single or double) that some tutorials show
@@ -65,7 +88,7 @@ if (fs.existsSync(envPath)) {
 
 // Configuration
 const CONFIG = {
-  model: process.env.GPT_MODEL || 'gpt-5.4',
+  model: process.env.GPT_MODEL || 'gpt-5.5',
   maxTokens: 4096,
   retryDelayMs: 1000,
 };
@@ -211,6 +234,9 @@ function parseArgs() {
       case '--help':
         printHelp();
         process.exit(0);
+      default:
+        console.error(`\n❌ Error: Unknown argument: ${args[i]}. Use --help to see options.`);
+        process.exit(1);
     }
   }
 
@@ -242,7 +268,7 @@ Options:
 
 Environment:
   OPENAI_API_KEY   Required for ChatGPT API calls
-  GPT_MODEL        Model to use (default: gpt-5.4)
+  GPT_MODEL        Model to use (default: gpt-5.5)
 
 Examples:
   # Initial review

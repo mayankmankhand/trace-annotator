@@ -1,0 +1,10 @@
+{"id":"sc_001","query":"What time does the store close on Sundays?","response":"Our stores close at 7pm on Sundays."}
+{"id":"sc_002","query":"Is the chocolate cake gluten-free?","response":"Yes, the chocolate cake on our menu is made with almond flour and is gluten-free."}
+{"id":"sc_003","query":"What is the wifi password?","response":"I don't have that information. Please ask a staff member."}
+{"id":"sc_004","query":"Can dogs come inside?","response":"Service animals are always welcome. Pet dogs are welcome on the patio only."}
+{"id":"sc_005","query":"Do you take Apple Pay?","response":"Yes, we accept Apple Pay, Google Pay, and all major credit cards."}
+{"id":"sc_006","query":"Where can I park?","response":"You can pakr in the lot behind the building or on the street."}
+{"id":"sc_007","query":"Is there a kids menu?","response":"Yes, ages 12 and under can order from the children's menu, which includes a drink and dessert."}
+{"id":"sc_008","query":"Does the soup have dairy?","description":"Tomato basil soup ingredients","response":"The tomato basil soup is dairy-free. The clam chowder and broccoli cheddar both contain dairy."}
+{"id":"sc_009","query":"How long is the wait right now?","response":"The current wait for a table is approximately 25 minutes for parties of 4 or more."}
+{"id":"sc_010","query":"Can I make a reservation for 8 people tomorrow?","response":"Yes! For parties of 6 or more we recommend calling ahead. I can take your reservation now if you'd like."}

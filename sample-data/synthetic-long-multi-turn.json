@@ -1,0 +1,65 @@
+[
+  {
+    "id": "lc_001",
+    "input": [
+      { "role": "user", "content": "I'm planning a hiking trip to Yosemite next month. What should I know?" },
+      { "role": "assistant", "content": "Yosemite in June is beautiful but busy. Are you camping or staying in a hotel? And what fitness level?" },
+      { "role": "user", "content": "We're staying at a lodge, and we're moderately fit. Two adults." },
+      { "role": "assistant", "content": "Great. I'd suggest the Mist Trail to Vernal Fall as a half-day hike, and Sentinel Dome for sunset views. Both are doable for moderately fit hikers." },
+      { "role": "user", "content": "How long is the Mist Trail?" }
+    ],
+    "output": [
+      { "role": "assistant", "content": "The Mist Trail to Vernal Fall is about 3 miles round trip with 1,000 feet of elevation gain. Plan on 3-4 hours. It's called the Mist Trail because you'll get wet near the falls, so bring a rain shell and waterproof shoes." }
+    ]
+  },
+  {
+    "id": "lc_002",
+    "input": [
+      { "role": "user", "content": "My laptop won't connect to wifi anymore. It worked yesterday." },
+      { "role": "assistant", "content": "Let's narrow it down. Do other devices in your home connect to the wifi?" },
+      { "role": "user", "content": "Yes, my phone connects fine." },
+      { "role": "assistant", "content": "Good, that means the router is fine. On your laptop, can you see the wifi network name in the list, but it just won't connect? Or is the network missing entirely?" },
+      { "role": "user", "content": "I see the network but when I click connect, it spins forever and then says 'cannot connect'." },
+      { "role": "assistant", "content": "Try this: forget the network on your laptop, then reconnect from scratch. Settings > Wi-Fi > the network > Forget. Then click it again and re-enter the password." },
+      { "role": "user", "content": "Tried that. Same error." }
+    ],
+    "output": [
+      { "role": "assistant", "content": "Okay, next step: restart your laptop's network adapter. On Windows, run `netsh winsock reset` in an admin command prompt and reboot. On macOS, go to System Settings > Network, remove the Wi-Fi service, then add it back. If neither works, the wifi card driver may be corrupted and you'll need to reinstall it." }
+    ]
+  },
+  {
+    "id": "lc_003",
+    "input": [
+      { "role": "user", "content": "Translate 'I would like to order the fish' into French, Spanish, and Italian." }
+    ],
+    "output": [
+      { "role": "assistant", "content": "Sure!\n\n- French: Je voudrais commander le poisson.\n- Spanish: Quisiera pedir el pescado.\n- Italian: Vorrei ordinare il pesce." }
+    ]
+  },
+  {
+    "id": "lc_004",
+    "input": [
+      { "role": "user", "content": "What's the difference between a loop and a recursion? I'm a beginner." },
+      { "role": "assistant", "content": "Both repeat work, but they do it differently. A loop says 'repeat these steps N times'. Recursion says 'a problem of size N is the same as a smaller problem of size N-1, plus a little extra work'." },
+      { "role": "user", "content": "Can you give an example?" },
+      { "role": "assistant", "content": "Sure - counting down from 5 to 1.\n\nLoop: `for i = 5; i > 0; i--: print(i)`\n\nRecursion: `function countdown(n): if n == 0 return; print(n); countdown(n-1)`. The function calls itself with a smaller number until it hits 0." },
+      { "role": "user", "content": "Why would I use recursion if loops work?" }
+    ],
+    "output": [
+      { "role": "assistant", "content": "Loops are usually simpler and faster. Use recursion when the problem is naturally recursive - like walking a tree of folders, or parsing nested expressions. The classic rule: if you find yourself manually keeping track of a stack inside a loop, recursion is probably cleaner. But for simple counting and iteration, loops are the right call." }
+    ]
+  },
+  {
+    "id": "lc_005",
+    "input": [
+      { "role": "user", "content": "I keep procrastinating on a big work project. Help." },
+      { "role": "assistant", "content": "Procrastination is usually about the project feeling too vague or too big. What's the project?" },
+      { "role": "user", "content": "I have to write a 20-page proposal by Friday." },
+      { "role": "assistant", "content": "Twenty pages by Friday is concrete but big. Have you broken it into sections yet, or are you staring at a blank doc?" },
+      { "role": "user", "content": "Blank doc." }
+    ],
+    "output": [
+      { "role": "assistant", "content": "That's the problem. Don't try to write the proposal - try to write its outline. Open a doc, list the section headings (Introduction, Problem, Approach, Timeline, Budget, etc.), and under each one write 1-2 sentences of what you'd say. That's a 30-minute task, not a 20-page task. Once you have the outline, the writing fills itself in. Set a 30-min timer and just outline. The blank-page block lifts the moment you have any structure." }
+    ]
+  }
+]
