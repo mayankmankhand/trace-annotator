@@ -43,13 +43,28 @@ function getOrEmpty(annotations: Annotations, id: string): Annotation {
 
 type Props = {
   traces: Trace[];
+  filename: string;
   onReset: () => void;
+  initialAnnotations?: Annotations;
+  initialIndex?: number;
 };
 
-export function TraceView({ traces, onReset }: Props) {
-  const [index, setIndex] = useState(0);
-  const [annotations, setAnnotations] = useState<Annotations>({});
-  const [allTags, setAllTags] = useState<string[]>([]);
+export function TraceView({
+  traces,
+  filename,
+  onReset,
+  initialAnnotations = {},
+  initialIndex = 0,
+}: Props) {
+  const [index, setIndex] = useState(initialIndex);
+  const [annotations, setAnnotations] = useState<Annotations>(initialAnnotations);
+  const [allTags, setAllTags] = useState<string[]>(() => {
+    const tagSet = new Set<string>();
+    for (const a of Object.values(initialAnnotations)) {
+      for (const t of a.tags) tagSet.add(t);
+    }
+    return Array.from(tagSet);
+  });
   const total = traces.length;
   const trace = traces[index];
   const annotation = getOrEmpty(annotations, trace.id);
@@ -61,6 +76,24 @@ export function TraceView({ traces, onReset }: Props) {
       setIndex((i) => Math.max(0, Math.min(total - 1, i + delta)));
     },
     [total],
+  );
+
+  const jumpToNextUnlabeled = useCallback(
+    (currentIndex: number, currentAnnotations: Annotations) => {
+      for (let i = currentIndex + 1; i < total; i++) {
+        if (!currentAnnotations[traces[i].id]?.verdict) {
+          setIndex(i);
+          return;
+        }
+      }
+      for (let i = 0; i < currentIndex; i++) {
+        if (!currentAnnotations[traces[i].id]?.verdict) {
+          setIndex(i);
+          return;
+        }
+      }
+    },
+    [traces, total],
   );
 
   const applyVerdict = useCallback(
@@ -140,6 +173,13 @@ export function TraceView({ traces, onReset }: Props) {
         case "ArrowLeft":
           go(-1);
           break;
+        case "n":
+        case "N":
+          setAnnotations((cur) => {
+            jumpToNextUnlabeled(index, cur);
+            return cur;
+          });
+          break;
         case "1":
         case "2":
         case "3":
@@ -153,14 +193,14 @@ export function TraceView({ traces, onReset }: Props) {
 
     document.addEventListener("keydown", handleKey);
     return () => document.removeEventListener("keydown", handleKey);
-  }, [go, applyVerdict, applyQuickTag, allTags]);
+  }, [go, applyVerdict, applyQuickTag, jumpToNextUnlabeled, index, allTags]);
 
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveLabelsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     const rows = toRows(annotations);
     if (rows.length === 0) return;
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => {
+    if (saveLabelsTimerRef.current) clearTimeout(saveLabelsTimerRef.current);
+    saveLabelsTimerRef.current = setTimeout(() => {
       fetch("/api/save-labels", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -168,9 +208,26 @@ export function TraceView({ traces, onReset }: Props) {
       }).catch(() => {});
     }, 800);
     return () => {
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      if (saveLabelsTimerRef.current) clearTimeout(saveLabelsTimerRef.current);
     };
   }, [annotations]);
+
+  const saveStateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (saveStateTimerRef.current) clearTimeout(saveStateTimerRef.current);
+    saveStateTimerRef.current = setTimeout(() => {
+      fetch("/api/session-state", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          state: { filename, traceCount: total, lastIndex: index, savedAt: new Date().toISOString() },
+        }),
+      }).catch(() => {});
+    }, 500);
+    return () => {
+      if (saveStateTimerRef.current) clearTimeout(saveStateTimerRef.current);
+    };
+  }, [index, filename, total]);
 
   function handleExport(format: "jsonl" | "csv") {
     const rows = toRows(annotations);
@@ -186,6 +243,7 @@ export function TraceView({ traces, onReset }: Props) {
   }
 
   const topTags = allTags.slice(0, 4);
+  const unlabeledCount = total - labeledCount;
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
@@ -241,6 +299,11 @@ export function TraceView({ traces, onReset }: Props) {
                 Edited
               </span>
             )}
+            {!annotation.verdict && (
+              <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
+                Unlabeled
+              </span>
+            )}
             {annotation.tags.map((t) => (
               <span
                 key={t}
@@ -277,17 +340,31 @@ export function TraceView({ traces, onReset }: Props) {
             <span aria-hidden="true">&#8592;</span> Prev
           </button>
 
-          <div className="flex items-center gap-2" role="group" aria-label="Label verdict">
-            <VerdictButton
-              verdict="pass"
-              current={annotation.verdict}
-              onClick={() => applyVerdict("pass")}
-            />
-            <VerdictButton
-              verdict="fail"
-              current={annotation.verdict}
-              onClick={() => applyVerdict("fail")}
-            />
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2" role="group" aria-label="Label verdict">
+              <VerdictButton
+                verdict="pass"
+                current={annotation.verdict}
+                onClick={() => applyVerdict("pass")}
+              />
+              <VerdictButton
+                verdict="fail"
+                current={annotation.verdict}
+                onClick={() => applyVerdict("fail")}
+              />
+            </div>
+            {unlabeledCount > 0 && (
+              <button
+                type="button"
+                onClick={() => jumpToNextUnlabeled(index, annotations)}
+                aria-label="Jump to next unlabeled trace"
+                title="Jump to next unlabeled [N]"
+                className="px-3 py-2 text-sm font-medium rounded border border-gray-300 text-gray-600 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              >
+                Next unlabeled
+                <span className="ml-1 text-xs text-gray-400">({unlabeledCount})</span>
+              </button>
+            )}
           </div>
 
           <button
@@ -332,6 +409,7 @@ export function TraceView({ traces, onReset }: Props) {
           <span><kbd className="font-mono font-semibold text-gray-500">F</kbd> Fail</span>
           <span><kbd className="font-mono font-semibold text-gray-500">&#8592; &#8594;</kbd> Navigate</span>
           <span><kbd className="font-mono font-semibold text-gray-500">Enter</kbd> Next</span>
+          <span><kbd className="font-mono font-semibold text-gray-500">N</kbd> Next unlabeled</span>
           {topTags.length > 0 && (
             <span><kbd className="font-mono font-semibold text-gray-500">1-{Math.min(4, topTags.length)}</kbd> Tag</span>
           )}
