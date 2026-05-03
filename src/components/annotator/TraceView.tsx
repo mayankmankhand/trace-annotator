@@ -1,7 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Trace } from "@/lib/trace/types";
+import type { LabelRow } from "@/lib/labels/types";
+import { serialize, mimeType, fileName } from "@/lib/labels/serialize";
 import { TraceRenderer } from "@/components/renderer/TraceRenderer";
 import { TagPanel } from "./TagPanel";
 
@@ -10,10 +12,23 @@ export type Annotation = {
   verdict: Verdict | null;
   note: string;
   tags: string[];
+  labeledAt: string;
 };
 export type Annotations = Record<string, Annotation>;
 
-const EMPTY_ANNOTATION: Annotation = { verdict: null, note: "", tags: [] };
+const EMPTY_ANNOTATION: Annotation = { verdict: null, note: "", tags: [], labeledAt: "" };
+
+function toRows(annotations: Annotations): LabelRow[] {
+  return Object.entries(annotations)
+    .filter(([, a]) => a.verdict !== null || a.tags.length > 0 || a.note.trim() !== "")
+    .map(([id, a]) => ({
+      trace_id: id,
+      verdict: a.verdict,
+      tags: a.tags,
+      note: a.note,
+      labeled_at: a.labeledAt || new Date().toISOString(),
+    }));
+}
 
 function getOrEmpty(annotations: Annotations, id: string): Annotation {
   return annotations[id] ?? EMPTY_ANNOTATION;
@@ -43,17 +58,30 @@ export function TraceView({ traces, onReset }: Props) {
 
   const applyVerdict = useCallback(
     (v: Verdict) => {
-      setAnnotations((prev) => ({
-        ...prev,
-        [trace.id]: { ...getOrEmpty(prev, trace.id), verdict: v },
-      }));
+      setAnnotations((prev) => {
+        const cur = getOrEmpty(prev, trace.id);
+        return {
+          ...prev,
+          [trace.id]: {
+            ...cur,
+            verdict: v,
+            labeledAt: cur.labeledAt || new Date().toISOString(),
+          },
+        };
+      });
     },
     [trace.id],
   );
 
   const updateAnnotation = useCallback(
     (a: Annotation) => {
-      setAnnotations((prev) => ({ ...prev, [trace.id]: a }));
+      setAnnotations((prev) => ({
+        ...prev,
+        [trace.id]: {
+          ...a,
+          labeledAt: a.labeledAt || new Date().toISOString(),
+        },
+      }));
     },
     [trace.id],
   );
@@ -118,6 +146,36 @@ export function TraceView({ traces, onReset }: Props) {
     return () => document.removeEventListener("keydown", handleKey);
   }, [go, applyVerdict, applyQuickTag, allTags]);
 
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    const rows = toRows(annotations);
+    if (rows.length === 0) return;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      fetch("/api/save-labels", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rows }),
+      }).catch(() => {});
+    }, 800);
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
+  }, [annotations]);
+
+  function handleExport(format: "jsonl" | "csv") {
+    const rows = toRows(annotations);
+    if (rows.length === 0) return;
+    const content = serialize(rows, format);
+    const blob = new Blob([content], { type: mimeType(format) });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName(format);
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   const topTags = allTags.slice(0, 4);
 
   return (
@@ -145,7 +203,9 @@ export function TraceView({ traces, onReset }: Props) {
             {labeledCount} of {total} labeled
           </p>
         </div>
-        <div className="w-24" aria-hidden="true" />
+        <div className="flex items-center gap-1">
+          <ExportButton onExport={handleExport} disabled={labeledCount === 0} />
+        </div>
       </header>
 
       <div
@@ -313,5 +373,44 @@ function VerdictBadge({ verdict }: { verdict: Verdict }) {
     >
       {isPass ? "Pass" : "Fail"}
     </span>
+  );
+}
+
+function ExportButton({
+  onExport,
+  disabled,
+}: {
+  onExport: (fmt: "jsonl" | "csv") => void;
+  disabled: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setOpen((v) => !v)}
+        className="px-3 py-1.5 text-sm font-medium rounded border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+      >
+        Export
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded shadow-lg z-20 min-w-[120px]">
+          {(["jsonl", "csv"] as const).map((fmt) => (
+            <button
+              key={fmt}
+              type="button"
+              onClick={() => {
+                onExport(fmt);
+                setOpen(false);
+              }}
+              className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+            >
+              Download .{fmt}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
