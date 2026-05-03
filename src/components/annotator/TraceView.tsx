@@ -31,8 +31,8 @@ export function TraceView({ traces, onReset }: Props) {
   const total = traces.length;
   const trace = traces[index];
   const annotation = getOrEmpty(annotations, trace.id);
-  const progressPct = ((index + 1) / total) * 100;
   const labeledCount = Object.values(annotations).filter((a) => a.verdict !== null).length;
+  const labelProgressPct = (labeledCount / total) * 100;
 
   const go = useCallback(
     (delta: number) => {
@@ -131,12 +131,19 @@ export function TraceView({ traces, onReset }: Props) {
           Load new file
         </button>
         <div className="text-center">
-          <p className="text-sm font-medium text-gray-700" aria-live="polite">
-            Trace {index + 1} of {total}
+          <p className="text-sm font-medium text-gray-700">
+            Trace{" "}
+            <span aria-live="polite">
+              {index + 1} of {total}
+            </span>
           </p>
-          {labeledCount > 0 && (
-            <p className="text-xs text-gray-400">{labeledCount} labeled</p>
-          )}
+          <p
+            aria-live="polite"
+            aria-atomic="true"
+            className="text-xs text-gray-500 mt-0.5"
+          >
+            {labeledCount} of {total} labeled
+          </p>
         </div>
         <div className="w-24" aria-hidden="true" />
       </header>
@@ -151,7 +158,7 @@ export function TraceView({ traces, onReset }: Props) {
       >
         <div
           className="h-1 bg-blue-500 transition-[width] duration-200"
-          style={{ width: `${progressPct}%` }}
+          style={{ width: `${labelProgressPct}%` }}
         />
       </div>
 
