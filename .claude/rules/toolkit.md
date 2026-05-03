@@ -1,6 +1,6 @@
 # Toolkit Rules
 
-<!-- Toolkit version: 4.2.2 | Managed by LLM Peer Review. Do not edit - changes will be overwritten on update. -->
+<!-- Toolkit version: 4.3.3 | Managed by LLM Peer Review. Do not edit - changes will be overwritten on update. -->
 
 ## How We Work Together
 
@@ -212,7 +212,7 @@ These are defined in `.claude/settings.local.json`. Each one exists for a reason
 | `node .claude/scripts/ask-gpt.js` | Running the ask-gpt debate script |
 | `node .claude/scripts/ask-gemini.js` | Running the ask-gemini debate script |
 | `node .claude/scripts/browse.js` | Running the headless browser QA script |
-| `echo/cat * \| node .claude/scripts/browse.js *` | Piped input to browse.js (browse-api patterns). Kept as explicit entries because `echo *` / `cat *` wildcards may not match piped commands. Absolute-path variants are injected by setup.sh per project. |
+| `echo/cat * \| node .claude/scripts/browse.js *` | Piped input to browse.js (browse-api patterns). Kept as explicit entries because `echo *` / `cat *` wildcards may not match piped commands. Absolute-path variants pointing at the current project's `.claude/scripts/browse.js` are injected by setup.sh per project; stale `scripts/browse.js` entries from older installs are removed automatically on the next setup run. |
 | `node .claude/scripts/generate-index.js` | Generating the project INDEX.md file |
 | `Read`, `Edit`, `Write`, `Glob`, `Grep` | Claude's built-in file tools (included for documentation) |
 | `WebFetch` (github.com, raw.githubusercontent.com), `WebSearch` | Fetching GitHub content and web search |
