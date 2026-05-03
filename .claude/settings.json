@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(bash -c 'TEMP_DIR=$\\(mktemp -d\\) && git clone --depth 1 https://github.com/mayankmankhand/llm-peer-review.git \"$TEMP_DIR\" && bash \"$TEMP_DIR/scripts/setup/setup.sh\" \"/home/mayank/Projects/Observability\" && rm -rf \"$TEMP_DIR\"')",
+      "Bash(sudo -n true)"
+    ]
+  }
+}
