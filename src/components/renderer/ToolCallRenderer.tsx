@@ -172,7 +172,7 @@ export function ToolCallRenderer({ messages }: Props) {
               >
                 {m.role}
               </div>
-              <div className="max-h-72 overflow-auto">{m.content}</div>
+              {m.content}
             </div>
           </div>
         );

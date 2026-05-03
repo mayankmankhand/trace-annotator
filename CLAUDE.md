@@ -46,7 +46,6 @@
 - AGENT-SETUP.md for AI-assisted install
 
 ### v2.1 scope
-- Batch labeling (#36) - deferred after wedge concern (premature taxonomy lock-in)
 - Tag hierarchy reconsidered
 
 ### v3 scope (deferred, do not re-litigate for v2.x)
@@ -56,6 +55,7 @@
 - SQLite storage backend (#32)
 - External platform integrations (#33)
 - Multi-format rendering (image, audio, video) (#34)
+- Batch labeling (#36) - deferred after wedge concern (premature taxonomy lock-in); revisit once open coding is internalized
 - Time-based progress estimation (#42)
 - LLM judge training pipeline (#44)
 - Alternate distribution shapes (CLI, notebook widget) (#45)
@@ -109,8 +109,8 @@ Locked-in v1 visual and interaction choices. Apply consistently across new compo
 
 | Area | Decision |
 |---|---|
-| Layout | 75/25 split. Trace content fills the left 75% in a single centered column. A right 25% panel carries Pass / Fail / Previous / Next / Label-next buttons. No left list sidebar. |
-| Top bar | Always visible. Carries filename, "Trace X of Y" counter, and "X of Y labeled" subline. |
+| Layout | 75/25 split. Trace content fills the left 75% in a single centered column. The right 25% panel is the per-trace decision surface only: Pass / Fail / Skip / Previous / Next / Label-next. No left list sidebar. Session-level tools live in the top bar so they don't compete with verdict actions. |
+| Top bar | Always visible. Left: logo + "Load new file". Center: "Trace X of Y" counter and "X of Y labeled" subline. Right: tools row carrying ? tips (when not active), Find (popover), Tags (count), Undo (count), Settings, save status, and Export. Find opens a popover combining filter, jump-to-#, and random sample. |
 | Bottom bar | Always visible. Carries quick-apply tag chips (top 4 most-recent) and keyboard hints (`P` Pass, `F` Fail, arrows Navigate, `Enter` Next, `N` Label next, `1-4` Tag). |
 | Density | Medium. Trace body fills ~70-80% of viewport height. No internal scrolling for typical chat turns. Metadata and "Show JSON" collapsed by default. |
 | Theme | Light only in v1. Background `bg-gray-50`, surfaces `bg-white`. No dark mode. |

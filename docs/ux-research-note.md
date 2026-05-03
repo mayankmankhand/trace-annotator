@@ -2,7 +2,7 @@
 
 **Issue:** #10  
 **Date:** 2026-05-03  
-**Status:** Phase A research locked, Phase B applied. Section 4.1 amended after user review.
+**Status:** Phase A research locked, Phase B applied. Section 4.1 amended after user review. Section 4.1 amended again in v2.1 to clarify the right panel as a decision-only surface (see issue #49).
 
 ---
 
@@ -93,6 +93,12 @@ These are recommendations for the user to approve before Phase B applies them.
 
 **No list sidebar:** A small persistent counter in the top bar (e.g., "7 of 120 labeled") preserves progress visibility without showing the full list of remaining traces. Avoids "list anxiety" while preserving status visibility.
 
+**v2.1 amendment - role clarification (issue #49):** The right panel is the *per-trace decision surface*. It carries only the actions a reviewer takes once per trace: Pass, Fail, Skip, Previous, Next, Label-next. Skip joined the panel in v2.0 as verdict-adjacent and is intentionally retained.
+
+Session-level tools (Find / filter / jump / sample, Manage tags, Undo, Settings, Export, ? tips) move to the *top-bar tools row*. The reasoning: when labeling, the eye should scan a small same-shape set of decision buttons, not a 9-affordance column mixing per-trace decisions with administrative controls. Any new affordance proposed for the right panel must answer "is this a per-trace decision?" before it lands. If not, it belongs in the top bar.
+
+This amendment narrows the v1 spec rather than redefining it: the original §4.1 intent was "label actions next to the trace at eye-level". Tools that grew into the panel post-v1 (Find, Manage tags, Undo) are routed elsewhere instead of trimmed.
+
 ---
 
 ### 4.2 Density: Medium - one trace fills the viewport
@@ -170,3 +176,18 @@ These map exactly to the Tailwind tokens already in use in the wizard.
 - Color-accessibility cue and multi-turn pagination intentionally deferred to v2
 
 Phase B should NOT start until the user approves this note.
+
+---
+
+## 8. v2.1 Amendments (issue #49)
+
+- Section 4.1 amended to clarify role separation: right panel is the per-trace decision surface (Pass / Fail / Skip / Previous / Next / Label-next); session-level tools (Find, Tags, Undo, Settings, ? tips, Export) live in the top-bar tools row.
+- Find collapses three previous panel sections (filter, jump-to-#, random sample) into a single popover anchored to the top-bar Find trigger; closes on click-outside or Escape.
+- Random sample size is now an inline number input with validation (range against `total`); the previous browser `prompt()` flow is gone.
+- Tag delete confirmation is now a styled `ConfirmDialog` listing the impact (number of traces affected); the previous browser `confirm()` flow is gone.
+- Settings hotkey rebinding rejects digits 1-4, Enter, and arrow keys (reserved), and rejects collisions against other actions; an inline error explains why.
+- Coaching Card 1 interpolates the active hotkeys.pass, hotkeys.fail, and hotkeys.next into the body string so the teaching stays in sync with rebinds. Card 5 drops the trace-25 promise on files where total < 25.
+- Coaching arc adds a small "X tips done - keep going" footer chip on traces 6-15 to maintain the teaching wedge across the silent gap between Card 5 and the trace-25 milestone.
+- Modal a11y: SettingsModal and TagManagementPanel now trap Tab/Shift+Tab focus, autoFocus first interactive element on open, and restore focus to the trigger on close.
+- ToolCallRenderer no longer caps message bubble height; the JSON args/results `<pre>` blocks keep their `max-h-48` cap (tool outputs can be huge).
+- Autosave gains a max-wait flush: rapid labeling streaks force a save after 3 seconds even if the user hasn't paused. A `beforeunload` handler best-effort flushes pending changes synchronously.
