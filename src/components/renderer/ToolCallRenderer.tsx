@@ -60,6 +60,7 @@ function parseToolCall(content: string): ToolCallInfo | null {
 
       if ("tool_calls" in obj && Array.isArray(obj.tool_calls)) {
         const first = obj.tool_calls[0] as Record<string, unknown>;
+        // OpenAI new format: tool_calls[0].function.{name, arguments}
         const fn = first.function as Record<string, unknown> | undefined;
         if (fn && typeof fn.name === "string") {
           let args: unknown = fn.arguments;
@@ -71,6 +72,18 @@ function parseToolCall(content: string): ToolCallInfo | null {
             }
           }
           return { name: fn.name, args };
+        }
+        // Older / custom format: tool_calls[0].{name, arguments} directly
+        if (typeof first.name === "string") {
+          let args: unknown = first.arguments ?? first.input ?? {};
+          if (typeof args === "string") {
+            try {
+              args = JSON.parse(args);
+            } catch {
+              // leave as string
+            }
+          }
+          return { name: first.name, args };
         }
       }
 

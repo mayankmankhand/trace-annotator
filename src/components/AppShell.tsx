@@ -6,12 +6,8 @@ import type { Annotations } from "./annotator/TraceView";
 import type { LabelRow } from "@/lib/labels/types";
 import { Wizard } from "./wizard/Wizard";
 import { TraceView } from "./annotator/TraceView";
-
-type SessionState = {
-  filename: string;
-  traceCount: number;
-  lastIndex: number;
-};
+import { Logo } from "./Logo";
+import { fingerprintFile, loadLabels, loadSessionState } from "@/lib/storage";
 
 type Phase =
   | { kind: "wizard" }
@@ -20,6 +16,7 @@ type Phase =
       kind: "resume-offer";
       traces: Trace[];
       filename: string;
+      fingerprint: string;
       lastIndex: number;
       annotations: Annotations;
       labeledCount: number;
@@ -28,6 +25,7 @@ type Phase =
       kind: "annotating";
       traces: Trace[];
       filename: string;
+      fingerprint: string;
       initialAnnotations: Annotations;
       initialIndex: number;
     };
@@ -41,9 +39,16 @@ function labelRowsToAnnotations(rows: LabelRow[]): Annotations {
       tags: row.tags,
       labeledAt: row.labeled_at,
       isEdited: false,
+      skipped: false,
     };
   }
   return out;
+}
+
+function computeFingerprint(traces: Trace[], filename: string): string {
+  const first = traces[0]?.id ?? "";
+  const last = traces[traces.length - 1]?.id ?? "";
+  return fingerprintFile(filename, traces.length, first, last);
 }
 
 export function AppShell() {
@@ -51,46 +56,33 @@ export function AppShell() {
 
   async function handleWizardDone(traces: Trace[], filename: string) {
     setPhase({ kind: "checking", traces, filename });
+    const fingerprint = computeFingerprint(traces, filename);
     try {
-      const [stateRes, labelsRes] = await Promise.all([
-        fetch("/api/session-state").then((r) => r.json()) as Promise<{
-          ok: boolean;
-          state?: SessionState;
-        }>,
-        fetch("/api/load-labels").then((r) => r.json()) as Promise<{
-          ok: boolean;
-          rows?: LabelRow[];
-        }>,
+      const [state, rows] = await Promise.all([
+        loadSessionState(fingerprint),
+        loadLabels(fingerprint),
       ]);
-
-      if (
-        stateRes.ok &&
-        stateRes.state &&
-        stateRes.state.filename === filename &&
-        stateRes.state.traceCount === traces.length &&
-        labelsRes.ok &&
-        labelsRes.rows &&
-        labelsRes.rows.length > 0
-      ) {
-        const annotations = labelRowsToAnnotations(labelsRes.rows);
+      if (state && rows.length > 0) {
         setPhase({
           kind: "resume-offer",
           traces,
           filename,
-          lastIndex: stateRes.state.lastIndex,
-          annotations,
-          labeledCount: labelsRes.rows.length,
+          fingerprint,
+          lastIndex: state.lastIndex,
+          annotations: labelRowsToAnnotations(rows),
+          labeledCount: rows.length,
         });
         return;
       }
     } catch {
-      // network error - fall through to fresh start
+      // Storage unavailable (private mode etc.) - fall through to fresh start.
     }
 
     setPhase({
       kind: "annotating",
       traces,
       filename,
+      fingerprint,
       initialAnnotations: {},
       initialIndex: 0,
     });
@@ -99,11 +91,9 @@ export function AppShell() {
   if (phase.kind === "wizard") {
     return (
       <main className="min-h-screen flex flex-col items-center px-4 py-12">
-        <div className="w-full max-w-2xl mb-8 text-center">
-          <h1 className="text-2xl font-semibold text-gray-900">
-            Trace Annotator
-          </h1>
-          <p className="text-gray-600 mt-2">
+        <div className="w-full max-w-2xl mb-8 flex flex-col items-center text-center gap-3">
+          <Logo />
+          <p className="text-gray-600 max-w-xl">
             A keyboard-first labeling tool for new PMs running their first eval.
             Load a file of LLM traces below; the wizard will help you map the
             fields and preview the first trace before labeling.
@@ -125,16 +115,47 @@ export function AppShell() {
   }
 
   if (phase.kind === "resume-offer") {
-    const { traces, filename, lastIndex, annotations, labeledCount } = phase;
+    const { traces, filename, fingerprint, lastIndex, annotations, labeledCount } = phase;
+    // Compose richer resume copy so the user knows exactly what state will
+    // be restored. Tag count surfaced too because that's the most visible
+    // sign of "have I done useful work yet?".
+    const passCount = Object.values(annotations).filter((a) => a.verdict === "pass").length;
+    const failCount = Object.values(annotations).filter((a) => a.verdict === "fail").length;
+    const distinctTags = new Set<string>();
+    for (const a of Object.values(annotations)) {
+      for (const t of a.tags) distinctTags.add(t);
+    }
     return (
       <main className="min-h-screen flex flex-col items-center justify-center px-4">
         <div className="w-full max-w-md rounded-lg border bg-white p-6 shadow-sm space-y-4">
           <h2 className="text-lg font-semibold text-gray-900">Resume session?</h2>
           <p className="text-sm text-gray-600">
             Found a saved session for{" "}
-            <span className="font-mono text-gray-800">{filename}</span>:{" "}
-            <strong>{labeledCount}</strong> of <strong>{traces.length}</strong> traces labeled.
-            Last viewed trace #{lastIndex + 1}.
+            <span className="font-mono text-gray-800">{filename}</span>.
+          </p>
+          <ul className="text-sm text-gray-700 space-y-1">
+            <li>
+              <strong>{labeledCount}</strong> of {traces.length} traces labeled
+              {labeledCount > 0 && (
+                <span className="text-gray-500">
+                  {" "}({passCount} pass, {failCount} fail)
+                </span>
+              )}
+            </li>
+            <li>
+              Last viewed: trace #{lastIndex + 1}
+            </li>
+            {distinctTags.size > 0 && (
+              <li>
+                <strong>{distinctTags.size}</strong>{" "}
+                {distinctTags.size === 1 ? "distinct tag" : "distinct tags"}{" "}
+                so far
+              </li>
+            )}
+          </ul>
+          <p className="text-xs text-gray-500">
+            Resuming restores all your labels and tags. Start fresh archives the
+            current state and starts at trace 1.
           </p>
           <div className="flex gap-3 pt-2">
             <button
@@ -144,6 +165,7 @@ export function AppShell() {
                   kind: "annotating",
                   traces,
                   filename,
+                  fingerprint,
                   initialAnnotations: annotations,
                   initialIndex: lastIndex,
                 })
@@ -159,6 +181,7 @@ export function AppShell() {
                   kind: "annotating",
                   traces,
                   filename,
+                  fingerprint,
                   initialAnnotations: {},
                   initialIndex: 0,
                 })
@@ -178,6 +201,7 @@ export function AppShell() {
     <TraceView
       traces={phase.traces}
       filename={phase.filename}
+      fingerprint={phase.fingerprint}
       initialAnnotations={phase.initialAnnotations}
       initialIndex={phase.initialIndex}
       onReset={() => setPhase({ kind: "wizard" })}

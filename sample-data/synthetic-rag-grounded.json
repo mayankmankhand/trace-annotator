@@ -1,0 +1,34 @@
+{
+  "data": [
+    {
+      "id": "rag_001",
+      "question": "What is our company policy on remote work?",
+      "retrieved_context": "Section 4.2 (Remote Work): Employees are eligible for remote work after 90 days of employment. Remote-eligible roles must work in-office at least 2 days per week unless granted a fully-remote exception by their manager.",
+      "answer": "Our remote work policy says you become eligible after 90 days of employment. Remote-eligible roles need to be in the office at least 2 days a week, unless your manager grants a fully-remote exception."
+    },
+    {
+      "id": "rag_002",
+      "question": "How many vacation days do new employees get?",
+      "retrieved_context": "Section 6.1 (PTO): All full-time employees accrue paid time off at 1.25 days per month, totaling 15 days per year. PTO begins accruing on the first day of employment.",
+      "answer": "New employees get 20 vacation days per year, accrued over time."
+    },
+    {
+      "id": "rag_003",
+      "question": "Can I expense my home internet?",
+      "retrieved_context": "Section 8.4 (Expense Reimbursement): The following are reimbursable for fully-remote employees: a one-time home office stipend up to $500, monthly internet reimbursement up to $50, and ergonomic equipment as approved by the manager. Hybrid employees are not eligible for monthly internet reimbursement.",
+      "answer": "If you're a fully-remote employee, yes - up to $50 per month. Hybrid employees aren't eligible for that one. There's also a one-time $500 home office stipend if you're fully remote."
+    },
+    {
+      "id": "rag_004",
+      "question": "What's the parental leave policy?",
+      "retrieved_context": "Section 6.3 (Parental Leave): Birthing parents receive 16 weeks of paid leave. Non-birthing parents receive 8 weeks of paid leave. Both must be taken within 12 months of the birth or adoption.",
+      "answer": "Birthing parents get 16 weeks of paid leave. Non-birthing parents get 8 weeks. You can take it any time within the first 12 months after birth or adoption."
+    },
+    {
+      "id": "rag_005",
+      "question": "Are my medical records confidential?",
+      "retrieved_context": "(no relevant section retrieved)",
+      "answer": "Yes, all medical records are kept strictly confidential under HIPAA and our internal data handling policy."
+    }
+  ]
+}
