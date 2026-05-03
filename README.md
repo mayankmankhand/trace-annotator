@@ -30,7 +30,10 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3000 and drop a file into the wizard. No file ready? Try `sample-data/recipe-chatbot-results.json`.
+Open http://localhost:3000 and drop a file into the wizard. No file ready? Two synthetic fixtures ship with the repo:
+
+- `fixtures/sample-chat-traces.jsonl` - 20 single-turn travel-assistant traces with deliberate failure modes (hallucinations, incompleteness, verbosity). Good for a first session.
+- `sample-data/recipe-chatbot-results.json` - 100 recipe-assistant traces. Larger dataset for sustained labeling.
 
 ## Bring your own data
 
