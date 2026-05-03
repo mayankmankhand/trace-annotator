@@ -6,7 +6,7 @@ An opinionated, open-source local web app for reviewing LLM (large language mode
 
 When you ship an LLM-powered feature, you need to look at lots of real outputs to spot the patterns of where it goes wrong. Trace Annotator gives you a clean keyboard-driven loop for doing that:
 
-- Load your **LLM traces** (the recorded prompt, model output, and metadata for each call your app made) from a JSONL or JSON file.
+- Load your **LLM traces** (the recorded prompt, model output, and metadata for each call your app made) from a JSONL, JSON, or CSV file. A guided wizard maps your file's fields to the tool's internal trace shape, with no code editing required.
 - Read each one rendered the way the end user would see it (chat bubble, email, etc.) instead of as a raw JSON blob.
 - Mark it pass or fail and add a short reason. Reuse reasons you have used before so they accumulate into a list of failure modes.
 - Export your labels as JSONL and feed them into an evaluator, a fine-tune, or a writeup.
@@ -17,9 +17,13 @@ This kind of structured review is sometimes called **open coding** (writing free
 
 Most existing labeling tools assume you already know how to do error analysis. This one is built to teach the method as you use it, so a PM doing their first eval pass can be productive on day one.
 
+## Try it with sample data
+
+The repo ships with `sample-data/recipe-chatbot-results.json`, a JSON array of 100 single-turn recipe queries and their LLM responses. Drop that file into the wizard to see the loader work end to end without bringing your own data.
+
 ## Bring your own data
 
-This is a BYO-data tool. Real trace data is never committed and is gitignored by default. The repo will ship with a synthetic fixture so you can try the tool before bringing your own data.
+This is a BYO-data tool. Real trace data is never committed and is gitignored by default. The wizard reads your file in the browser; nothing is uploaded.
 
 ## Try it
 
@@ -30,7 +34,7 @@ npm install
 npm run dev
 ```
 
-Then open http://localhost:3000 in your browser. The placeholder home page confirms the skeleton is up. Real labeling features land issue by issue, see [open issues](../../issues) for status.
+Then open http://localhost:3000 in your browser. The home page is the trace loader: drop a JSONL, JSON, or CSV file (or use the sample above) and walk the wizard. The labeling view itself is the next milestone, see [open issues](../../issues) for status.
 
 ## Status
 

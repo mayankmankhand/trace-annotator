@@ -14,13 +14,13 @@
 
 **Tech stack:** Next.js with React, App Router, TypeScript, and Tailwind (the conventional Next.js stack; not separately debated). JSONL file storage by default. SQLite is a v1.5 opt-in.
 
-**Distribution model:** Adapter pattern, not fork-and-customize. Users clone the repo, write a small `adapter.ts` to map their trace format to the tool's schema, and pull updates freely. The repo stays pristine.
+**Distribution model:** Guided wizard for v1 (no code editing required). The original "adapter pattern, not fork-and-customize" framing has been narrowed: a wizard maps the user's file fields to the internal trace shape; an `adapter.ts` escape hatch is deferred to v1.5 (issue #16). Users clone the repo and pull updates freely; the repo stays pristine.
 
 **Public repo, BYO data.** No real trace data is ever committed. Synthetic fixtures only. Real data paths are gitignored by default.
 
 ### v1 scope (in)
 1. Bootstrap Next.js skeleton
-2. Trace input loader and adapter pattern (JSONL/JSON auto-detect)
+2. Trace input loader with guided wizard (JSONL / JSON / CSV auto-detect; adapter.ts deferred to v1.5 per issue #16)
 3. Native rendering for chat / email / generic outputs (with JSON-on-demand)
 4. Single-trace view with progressive disclosure
 5. Pass/fail labeling and keyboard hot keys
