@@ -13,10 +13,17 @@ export type Annotation = {
   note: string;
   tags: string[];
   labeledAt: string;
+  isEdited: boolean;
 };
 export type Annotations = Record<string, Annotation>;
 
-const EMPTY_ANNOTATION: Annotation = { verdict: null, note: "", tags: [], labeledAt: "" };
+const EMPTY_ANNOTATION: Annotation = {
+  verdict: null,
+  note: "",
+  tags: [],
+  labeledAt: "",
+  isEdited: false,
+};
 
 function toRows(annotations: Annotations): LabelRow[] {
   return Object.entries(annotations)
@@ -60,11 +67,13 @@ export function TraceView({ traces, onReset }: Props) {
     (v: Verdict) => {
       setAnnotations((prev) => {
         const cur = getOrEmpty(prev, trace.id);
+        const isEdited = cur.isEdited || (cur.verdict !== null && cur.verdict !== v);
         return {
           ...prev,
           [trace.id]: {
             ...cur,
             verdict: v,
+            isEdited,
             labeledAt: cur.labeledAt || new Date().toISOString(),
           },
         };
@@ -224,9 +233,14 @@ export function TraceView({ traces, onReset }: Props) {
 
       <main className="flex-1 overflow-auto">
         <div className="max-w-2xl mx-auto px-4 py-8">
-          <div className="mb-3 flex items-center gap-3">
+          <div className="mb-3 flex items-center flex-wrap gap-2">
             <span className="text-xs font-mono text-gray-400">id: {trace.id}</span>
             {annotation.verdict && <VerdictBadge verdict={annotation.verdict} />}
+            {annotation.isEdited && (
+              <span className="inline-flex items-center rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700">
+                Edited
+              </span>
+            )}
             {annotation.tags.map((t) => (
               <span
                 key={t}
