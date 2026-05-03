@@ -3,9 +3,21 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Trace } from "@/lib/trace/types";
 import { TraceRenderer } from "@/components/renderer/TraceRenderer";
+import { TagPanel } from "./TagPanel";
 
 export type Verdict = "pass" | "fail";
-export type Labels = Record<string, Verdict>;
+export type Annotation = {
+  verdict: Verdict | null;
+  note: string;
+  tags: string[];
+};
+export type Annotations = Record<string, Annotation>;
+
+const EMPTY_ANNOTATION: Annotation = { verdict: null, note: "", tags: [] };
+
+function getOrEmpty(annotations: Annotations, id: string): Annotation {
+  return annotations[id] ?? EMPTY_ANNOTATION;
+}
 
 type Props = {
   traces: Trace[];
@@ -14,12 +26,13 @@ type Props = {
 
 export function TraceView({ traces, onReset }: Props) {
   const [index, setIndex] = useState(0);
-  const [labels, setLabels] = useState<Labels>({});
+  const [annotations, setAnnotations] = useState<Annotations>({});
+  const [allTags, setAllTags] = useState<string[]>([]);
   const total = traces.length;
   const trace = traces[index];
+  const annotation = getOrEmpty(annotations, trace.id);
   const progressPct = ((index + 1) / total) * 100;
-  const currentVerdict = labels[trace.id] ?? null;
-  const labeledCount = Object.keys(labels).length;
+  const labeledCount = Object.values(annotations).filter((a) => a.verdict !== null).length;
 
   const go = useCallback(
     (delta: number) => {
@@ -30,9 +43,38 @@ export function TraceView({ traces, onReset }: Props) {
 
   const applyVerdict = useCallback(
     (v: Verdict) => {
-      setLabels((prev) => ({ ...prev, [trace.id]: v }));
+      setAnnotations((prev) => ({
+        ...prev,
+        [trace.id]: { ...getOrEmpty(prev, trace.id), verdict: v },
+      }));
     },
     [trace.id],
+  );
+
+  const updateAnnotation = useCallback(
+    (a: Annotation) => {
+      setAnnotations((prev) => ({ ...prev, [trace.id]: a }));
+    },
+    [trace.id],
+  );
+
+  const addTagToSession = useCallback((tag: string) => {
+    setAllTags((prev) => {
+      const without = prev.filter((t) => t !== tag);
+      return [tag, ...without];
+    });
+  }, []);
+
+  const applyQuickTag = useCallback(
+    (tag: string) => {
+      setAnnotations((prev) => {
+        const cur = getOrEmpty(prev, trace.id);
+        if (cur.tags.includes(tag)) return prev;
+        return { ...prev, [trace.id]: { ...cur, tags: [...cur.tags, tag] } };
+      });
+      addTagToSession(tag);
+    },
+    [trace.id, addTagToSession],
   );
 
   useEffect(() => {
@@ -61,12 +103,22 @@ export function TraceView({ traces, onReset }: Props) {
         case "ArrowLeft":
           go(-1);
           break;
+        case "1":
+        case "2":
+        case "3":
+        case "4": {
+          const i = Number(e.key) - 1;
+          if (allTags[i]) applyQuickTag(allTags[i]);
+          break;
+        }
       }
     }
 
     document.addEventListener("keydown", handleKey);
     return () => document.removeEventListener("keydown", handleKey);
-  }, [go, applyVerdict]);
+  }, [go, applyVerdict, applyQuickTag, allTags]);
+
+  const topTags = allTags.slice(0, 4);
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
@@ -83,9 +135,7 @@ export function TraceView({ traces, onReset }: Props) {
             Trace {index + 1} of {total}
           </p>
           {labeledCount > 0 && (
-            <p className="text-xs text-gray-400">
-              {labeledCount} labeled
-            </p>
+            <p className="text-xs text-gray-400">{labeledCount} labeled</p>
           )}
         </div>
         <div className="w-24" aria-hidden="true" />
@@ -108,14 +158,26 @@ export function TraceView({ traces, onReset }: Props) {
       <main className="flex-1 overflow-auto">
         <div className="max-w-2xl mx-auto px-4 py-8">
           <div className="mb-3 flex items-center gap-3">
-            <span className="text-xs font-mono text-gray-400">
-              id: {trace.id}
-            </span>
-            {currentVerdict && (
-              <VerdictBadge verdict={currentVerdict} />
-            )}
+            <span className="text-xs font-mono text-gray-400">id: {trace.id}</span>
+            {annotation.verdict && <VerdictBadge verdict={annotation.verdict} />}
+            {annotation.tags.map((t) => (
+              <span
+                key={t}
+                className="inline-flex items-center rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-800"
+              >
+                {t}
+              </span>
+            ))}
           </div>
+
           <TraceRenderer trace={trace} collapseSystem />
+
+          <TagPanel
+            annotation={annotation}
+            allTags={allTags}
+            onUpdate={updateAnnotation}
+            onTagCreated={addTagToSession}
+          />
         </div>
       </main>
 
@@ -137,12 +199,12 @@ export function TraceView({ traces, onReset }: Props) {
           <div className="flex items-center gap-2" role="group" aria-label="Label verdict">
             <VerdictButton
               verdict="pass"
-              current={currentVerdict}
+              current={annotation.verdict}
               onClick={() => applyVerdict("pass")}
             />
             <VerdictButton
               verdict="fail"
-              current={currentVerdict}
+              current={annotation.verdict}
               onClick={() => applyVerdict("fail")}
             />
           </div>
@@ -158,6 +220,29 @@ export function TraceView({ traces, onReset }: Props) {
           </button>
         </div>
 
+        {topTags.length > 0 && (
+          <div
+            aria-label="Quick-apply failure mode tags"
+            className="border-t px-4 py-2 flex gap-2 flex-wrap"
+          >
+            {topTags.map((tag, i) => (
+              <button
+                key={tag}
+                type="button"
+                onClick={() => applyQuickTag(tag)}
+                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 ${
+                  annotation.tags.includes(tag)
+                    ? "bg-violet-600 border-violet-600 text-white"
+                    : "border-violet-300 text-violet-700 hover:bg-violet-50"
+                }`}
+              >
+                <kbd className="font-mono opacity-70">[{i + 1}]</kbd>
+                {tag}
+              </button>
+            ))}
+          </div>
+        )}
+
         <div
           aria-label="Keyboard shortcuts"
           className="border-t bg-gray-50 px-4 py-1.5 flex items-center justify-center gap-5 text-xs text-gray-400"
@@ -166,6 +251,9 @@ export function TraceView({ traces, onReset }: Props) {
           <span><kbd className="font-mono font-semibold text-gray-500">F</kbd> Fail</span>
           <span><kbd className="font-mono font-semibold text-gray-500">&#8592; &#8594;</kbd> Navigate</span>
           <span><kbd className="font-mono font-semibold text-gray-500">Enter</kbd> Next</span>
+          {topTags.length > 0 && (
+            <span><kbd className="font-mono font-semibold text-gray-500">1-{Math.min(4, topTags.length)}</kbd> Tag</span>
+          )}
         </div>
       </nav>
     </div>
@@ -213,9 +301,7 @@ function VerdictBadge({ verdict }: { verdict: Verdict }) {
   return (
     <span
       className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${
-        isPass
-          ? "bg-green-100 text-green-800"
-          : "bg-red-100 text-red-800"
+        isPass ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
       }`}
     >
       {isPass ? "Pass" : "Fail"}
