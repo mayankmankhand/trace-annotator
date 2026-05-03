@@ -27,12 +27,14 @@ In v1, the coaching cards were written reactively: "what would be useful to say 
 
 **Teaches:** what this tool does, and the keyboard-first loop (P, F, arrows, Enter).
 
-**Body:**
+**Body (v2.1: hotkey labels are interpolated from the user's current bindings, so the copy stays accurate after a rebind):**
 > You're doing **open coding** - reviewing LLM outputs without a fixed checklist, noticing patterns as you go.
 >
-> The basic loop: read the trace, decide if it passes or fails, hit **P** or **F**, then **Enter** for the next one. That's it.
+> The basic loop: read the trace, decide if it passes or fails, hit **{pass-key}** or **{fail-key}**, then **{next-key}** for the next one. That's it.
 >
 > Pass means the output is acceptable for its intended use. Fail means it's wrong, harmful, off-task, or low-quality enough that you'd want to fix it before showing a user.
+
+Default substitutions when no rebind has occurred: pass-key = `P`, fail-key = `F`, next-key = `Enter`. The placeholder mapping (which Hotkeys field becomes which placeholder) is wired in `buildTipBody()` in `src/components/annotator/CoachingTip.tsx`; that function is the source of truth for new placeholders.
 
 **Success measure:** the user gives a verdict on trace 1 within 30 seconds of seeing the card.
 
@@ -77,12 +79,12 @@ In v1, the coaching cards were written reactively: "what would be useful to say 
 
 **Teaches:** what to expect and why to keep going.
 
-**Body:**
+**Body (v2.1: the trace-25 promise is dropped on files smaller than 25 traces so we don't make a promise we won't keep):**
 > Around trace 20-30, your tag list starts to repeat. That's the moment your **failure-mode taxonomy** appears.
 >
 > Until then, it's normal to feel like you're flailing. Trust the method.
 >
-> When you hit trace 25 we'll show you another tip - a quick exercise to consolidate what you've found.
+> *(when total >= 25)* When you hit trace 25 we'll show you another tip - a quick exercise to consolidate what you've found.
 
 **Success measure:** the user keeps going past trace 5 (session continues for 10+ more traces).
 
@@ -112,6 +114,17 @@ Shown once each, when the user hits these traces:
 - **Trace 100:** "Time to step back" - suggests exporting and looking at tag frequency before continuing.
 
 These are NOT taught here as polished copy - Step 6 implements them with copy iteration.
+
+## Tips-progress chip (v2.1, traces 6-15)
+
+A small "Coaching - keep going" pill rendered in the top-bar tools row on traces 6-15 (1-indexed). It is *not* a milestone card - it lives in a separate visual surface (the tools row, not the trace metadata row) and uses position-not-completion copy because the user may have session-dismissed an early card. Hidden when:
+
+- The file has fewer than 5 traces (no completed cards behind it)
+- The trace index is past 14 (1-indexed trace 15)
+- The user has dismissed it (sessionStorage flag)
+- Coaching is inactive (`coachingActive` prop, also gated by the parent on the same value - the chip is part of the coaching surface, so a permanent coaching dismiss hides the chip too)
+
+Why this exists: without it, coaching went silent for ~20 traces, which works against the "tool teaches the method as you label" wedge. The chip is the smallest possible affordance that maintains presence without inventing new instructional content.
 
 ## Self-walkthrough validation
 

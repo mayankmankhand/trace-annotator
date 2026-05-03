@@ -1,30 +1,63 @@
 "use client";
 
-// Cards 1-5 are sourced verbatim from docs/coaching-arc.md (Step 4 spec).
-// Each card teaches a single thing tied to a measurable success criterion.
-// Don't edit copy here without updating the spec doc.
-const TIPS = [
-  {
-    title: "Welcome - you're doing open coding",
-    body: "You're reviewing LLM outputs without a fixed checklist, noticing patterns as you go. The basic loop: read, decide pass or fail, hit P or F, then Enter for the next. Pass means the output is good enough to ship. Fail means it's wrong, harmful, off-task, or low-quality.",
-  },
-  {
-    title: "Tags vs notes",
-    body: "When a fail has a specific shape - 'wrong-date', 'too-verbose', 'made-stuff-up' - add a tag. Tags are how patterns become visible. After 20 traces, your tag list IS your failure-mode taxonomy. A note is for things specific to one trace and won't show up in your final analysis. When in doubt, tag.",
-  },
-  {
-    title: "Every label is reversible",
-    body: "Don't agonize on early traces. Hit the left arrow any time to go back and change a verdict or tag. Nothing is final until you export. The first 5 traces feel uncertain on purpose - real patterns appear around trace 20-30.",
-  },
-  {
-    title: "Why no taxonomy upfront",
-    body: "Wondering where the dropdown of failure types is? It's missing on purpose. Other tools force you to pick from a fixed list, which biases what you notice. We let you write your own tags so the categories that emerge are real, not borrowed. You'll have a list that fits your app.",
-  },
-  {
-    title: "Around trace 20-30 your taxonomy appears",
-    body: "Right now your tags feel scattered. That's normal. Around trace 20-30, the list starts to repeat - that's the moment your failure-mode taxonomy emerges. Trust the method. We'll show another tip at trace 25 to help consolidate.",
-  },
+import type { Hotkeys } from "@/lib/storage";
+
+// Cards 1-5 mirror docs/coaching-arc.md (Step 4 spec). Bodies that reference
+// hotkeys are interpolated at render time so the coaching stays in lockstep
+// with whatever bindings the user has configured. Card 5's trace-25 promise
+// is dropped on files smaller than 25 traces so we don't make a promise we
+// won't keep. Don't edit the static text here without updating the spec doc.
+const TIP_TITLES = [
+  "Welcome - you're doing open coding",
+  "Tags vs notes",
+  "Every label is reversible",
+  "Why no taxonomy upfront",
+  "Around trace 20-30 your taxonomy appears",
 ] as const;
+
+const TIPS_COUNT = TIP_TITLES.length;
+
+// Render a hotkey in plain English suitable for prose. Letter keys are
+// upper-cased; named keys (Enter, arrows) get a friendly form.
+function formatHotkeyForCopy(key: string): string {
+  if (key === "Enter") return "Enter";
+  if (key === "ArrowLeft") return "the left arrow";
+  if (key === "ArrowRight") return "the right arrow";
+  if (key === "ArrowUp") return "the up arrow";
+  if (key === "ArrowDown") return "the down arrow";
+  return key.toUpperCase();
+}
+
+function buildTipBody(
+  index: number,
+  hotkeys: Hotkeys,
+  total: number,
+): string {
+  const passLabel = hotkeys.pass.toUpperCase();
+  const failLabel = hotkeys.fail.toUpperCase();
+  const nextLabel = formatHotkeyForCopy(hotkeys.next);
+  switch (index) {
+    case 0:
+      return `You're reviewing LLM outputs without a fixed checklist, noticing patterns as you go. The basic loop: read, decide pass or fail, hit ${passLabel} or ${failLabel}, then ${nextLabel} for the next. Pass means the output is good enough to ship. Fail means it's wrong, harmful, off-task, or low-quality.`;
+    case 1:
+      return "When a fail has a specific shape - 'wrong-date', 'too-verbose', 'made-stuff-up' - add a tag. Tags are how patterns become visible. After 20 traces, your tag list IS your failure-mode taxonomy. A note is for things specific to one trace and won't show up in your final analysis. When in doubt, tag.";
+    case 2:
+      return "Don't agonize on early traces. Hit the left arrow any time to go back and change a verdict or tag. Nothing is final until you export. The first 5 traces feel uncertain on purpose - real patterns appear around trace 20-30.";
+    case 3:
+      return "Wondering where the dropdown of failure types is? It's missing on purpose. Other tools force you to pick from a fixed list, which biases what you notice. We let you write your own tags so the categories that emerge are real, not borrowed. You'll have a list that fits your app.";
+    case 4: {
+      // Only promise the trace-25 milestone when the file is large enough
+      // to actually reach it. Otherwise the promise is broken silently.
+      const tail =
+        total >= 25
+          ? " We'll show another tip at trace 25 to help consolidate."
+          : "";
+      return `Right now your tags feel scattered. That's normal. Around trace 20-30, the list starts to repeat - that's the moment your failure-mode taxonomy emerges. Trust the method.${tail}`;
+    }
+    default:
+      return "";
+  }
+}
 
 // Milestone cards beyond trace 5. Shown once per fingerprint (not session)
 // so the user gets them on the file they're labeling, even if they take
@@ -61,6 +94,9 @@ const SS_KEY = "ta:coaching:session-dismissed:v2";
 // Per-fingerprint flags for milestone cards so the same milestone doesn't
 // re-fire on every file load.
 const MILESTONE_KEY_PREFIX = "ta:coaching:milestone:";
+// Session-level dismissal of the "X tips done" footer chip shown on
+// traces 6-15 (see TipsProgressChip).
+const TIPS_CHIP_SS_KEY = "ta:coaching:tips-chip-dismissed:v1";
 
 function milestoneKey(fingerprint: string, atIndex: number): string {
   return `${MILESTONE_KEY_PREFIX}${fingerprint}:${atIndex}`;
@@ -88,8 +124,20 @@ export function resetCoaching() {
   if (typeof window === "undefined") return;
   localStorage.removeItem(LS_KEY);
   sessionStorage.removeItem(SS_KEY);
-  // Don't reset milestone flags here. Those are per-file and the user
-  // probably doesn't want trace 25 to re-pop on every replay click.
+  // Tips-chip dismissal is also cleared so a "show tips again" click brings
+  // the full coaching surface back. Milestone flags stay - those are
+  // per-file and shouldn't re-pop.
+  sessionStorage.removeItem(TIPS_CHIP_SS_KEY);
+}
+
+export function isTipsChipDismissed(): boolean {
+  if (typeof window === "undefined") return false;
+  return sessionStorage.getItem(TIPS_CHIP_SS_KEY) === "true";
+}
+
+export function dismissTipsChipSession() {
+  if (typeof window === "undefined") return;
+  sessionStorage.setItem(TIPS_CHIP_SS_KEY, "true");
 }
 
 export function getMilestoneForIndex(
@@ -116,31 +164,40 @@ export function dismissMilestone(fingerprint: string, atIndex: number): void {
 
 type Props = {
   traceIndex: number;
+  total: number;
+  hotkeys: Hotkeys;
   onSessionDismiss: () => void;
   onPermanentDismiss: () => void;
 };
 
-export function CoachingTip({ traceIndex, onSessionDismiss, onPermanentDismiss }: Props) {
-  if (traceIndex >= TIPS.length) return null;
-  const tip = TIPS[traceIndex];
-  const stepLabel = `Tip ${traceIndex + 1} of ${TIPS.length}`;
+export function CoachingTip({
+  traceIndex,
+  total,
+  hotkeys,
+  onSessionDismiss,
+  onPermanentDismiss,
+}: Props) {
+  if (traceIndex >= TIPS_COUNT) return null;
+  const title = TIP_TITLES[traceIndex];
+  const body = buildTipBody(traceIndex, hotkeys, total);
+  const stepLabel = `Tip ${traceIndex + 1} of ${TIPS_COUNT}`;
 
   return (
     <div
       role="note"
-      aria-label={`Coaching tip: ${tip.title}`}
+      aria-label={`Coaching tip: ${title}`}
       className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
-          <p className="font-semibold text-blue-900">{tip.title}</p>
-          <p className="text-blue-800 mt-0.5 leading-relaxed">{tip.body}</p>
+          <p className="font-semibold text-blue-900">{title}</p>
+          <p className="text-blue-800 mt-0.5 leading-relaxed">{body}</p>
         </div>
         <button
           type="button"
           onClick={onSessionDismiss}
           aria-label="Dismiss coaching tips for this session"
-          className="flex-shrink-0 text-blue-400 hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded text-lg leading-none mt-0.5"
+          className="flex-shrink-0 inline-flex items-center justify-center w-7 h-7 -mr-1 -mt-1 rounded text-blue-400 hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 text-lg leading-none"
         >
           &times;
         </button>
@@ -183,11 +240,53 @@ export function MilestoneTip({
           type="button"
           onClick={onDismiss}
           aria-label="Dismiss milestone tip"
-          className="flex-shrink-0 text-blue-400 hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded text-lg leading-none mt-0.5"
+          className="flex-shrink-0 inline-flex items-center justify-center w-7 h-7 -mr-1 -mt-1 rounded text-blue-400 hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 text-lg leading-none"
         >
           &times;
         </button>
       </div>
     </div>
+  );
+}
+
+// Small presence indicator rendered between Card 5 (last initial tip) and
+// the trace-25 milestone. Without it, coaching goes silent for ~20 traces,
+// which works against the "tool teaches as you label" wedge. Visible on
+// traces 6-15 (1-indexed), session-dismissible. Self-gates on file size and
+// trace position; the parent must also gate on coachingActive (passed in)
+// so a permanent dismiss hides the chip too. Copy is intentionally
+// position-not-completion ("Keep going") because the user may have
+// session-dismissed an early card and "5 tips done" would be inaccurate.
+export function TipsProgressChip({
+  traceIndex,
+  total,
+  coachingActive,
+  onDismiss,
+}: {
+  traceIndex: number;
+  total: number;
+  coachingActive: boolean;
+  onDismiss: () => void;
+}) {
+  if (!coachingActive) return null;
+  if (traceIndex < TIPS_COUNT) return null;
+  if (traceIndex >= 15) return null;
+  if (total < TIPS_COUNT) return null;
+  return (
+    <span
+      role="status"
+      className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 border border-blue-200 px-2 py-0.5 text-xs text-blue-700"
+    >
+      <span className="font-medium">Coaching</span>
+      <span className="text-blue-500">- keep going</span>
+      <button
+        type="button"
+        onClick={onDismiss}
+        aria-label="Dismiss coaching progress chip"
+        className="inline-flex items-center justify-center w-5 h-5 rounded text-blue-400 hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+      >
+        &times;
+      </button>
+    </span>
   );
 }
