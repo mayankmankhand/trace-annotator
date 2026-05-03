@@ -311,73 +311,66 @@ export function TraceView({
         />
       </div>
 
-      <main className="flex-1 overflow-auto">
-        <div className="max-w-2xl mx-auto px-4 py-8">
-          <div className="mb-3 flex items-center flex-wrap gap-2">
-            <span className="text-xs font-mono text-gray-400">id: {trace.id}</span>
-            {annotation.verdict && <VerdictBadge verdict={annotation.verdict} />}
-            {annotation.isEdited && (
-              <span className="inline-flex items-center rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700">
-                Edited
-              </span>
-            )}
-            {!annotation.verdict && (
-              <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
-                Unlabeled
-              </span>
-            )}
-            {annotation.tags.map((t) => (
-              <span
-                key={t}
-                className="inline-flex items-center rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-800"
-              >
-                {t}
-              </span>
-            ))}
-          </div>
+      <div className="flex-1 flex min-h-0">
+        <main className="basis-3/4 flex-1 overflow-auto">
+          <div className="max-w-3xl mx-auto px-6 py-8">
+            <div className="mb-3 flex items-center flex-wrap gap-2">
+              <span className="text-xs font-mono text-gray-400">id: {trace.id}</span>
+              {annotation.verdict && <VerdictBadge verdict={annotation.verdict} />}
+              {annotation.isEdited && (
+                <span className="inline-flex items-center rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700">
+                  Edited
+                </span>
+              )}
+              {!annotation.verdict && (
+                <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
+                  Unlabeled
+                </span>
+              )}
+              {annotation.tags.map((t) => (
+                <span
+                  key={t}
+                  className="inline-flex items-center rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-800"
+                >
+                  {t}
+                </span>
+              ))}
+            </div>
 
-          {coachingActive && (
-            <CoachingTip
-              traceIndex={index}
-              onSessionDismiss={() => {
-                dismissCoachingSession();
-                setCoachingActive(false);
-              }}
-              onPermanentDismiss={() => {
-                dismissCoachingPermanent();
-                setCoachingActive(false);
-              }}
+            {coachingActive && (
+              <CoachingTip
+                traceIndex={index}
+                onSessionDismiss={() => {
+                  dismissCoachingSession();
+                  setCoachingActive(false);
+                }}
+                onPermanentDismiss={() => {
+                  dismissCoachingPermanent();
+                  setCoachingActive(false);
+                }}
+              />
+            )}
+
+            <TraceRenderer trace={trace} collapseSystem />
+
+            <TagPanel
+              annotation={annotation}
+              allTags={allTags}
+              onUpdate={updateAnnotation}
+              onTagCreated={addTagToSession}
             />
-          )}
+          </div>
+        </main>
 
-          <TraceRenderer trace={trace} collapseSystem />
-
-          <TagPanel
-            annotation={annotation}
-            allTags={allTags}
-            onUpdate={updateAnnotation}
-            onTagCreated={addTagToSession}
-          />
-        </div>
-      </main>
-
-      <nav
-        aria-label="Trace navigation and labeling"
-        className="border-t bg-white sticky bottom-0 shadow-[0_-1px_3px_rgba(0,0,0,0.06)]"
-      >
-        <div className="px-4 py-3 flex items-center justify-between gap-4">
-          <button
-            type="button"
-            disabled={index === 0}
-            onClick={() => go(-1)}
-            aria-label="Previous trace"
-            className="flex items-center gap-1 px-3 py-2 text-sm font-medium rounded border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-          >
-            <span aria-hidden="true">&#8592;</span> Prev
-          </button>
-
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-2" role="group" aria-label="Label verdict">
+        <aside
+          aria-label="Label and navigate"
+          className="basis-1/4 min-w-[220px] max-w-[360px] border-l bg-white px-4 py-6 overflow-auto flex flex-col gap-5"
+        >
+          <div>
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
+              Label this trace
+            </h3>
+            <div className="flex flex-col gap-2" role="group" aria-label="Label verdict">
               <VerdictButton
                 verdict="pass"
                 current={annotation.verdict}
@@ -389,35 +382,57 @@ export function TraceView({
                 onClick={() => applyVerdict("fail")}
               />
             </div>
-            {unlabeledCount > 0 && (
+          </div>
+
+          <div>
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
+              Navigate
+            </h3>
+            <div className="flex flex-col gap-2">
               <button
                 type="button"
+                disabled={index === 0}
+                onClick={() => go(-1)}
+                aria-label="Previous trace"
+                className="flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium rounded border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              >
+                <span aria-hidden="true">&#8592;</span> Previous
+              </button>
+              <button
+                type="button"
+                disabled={index === total - 1}
+                onClick={() => go(1)}
+                aria-label="Next trace"
+                className="flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium rounded border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              >
+                Next <span aria-hidden="true">&#8594;</span>
+              </button>
+              <button
+                type="button"
+                disabled={unlabeledCount === 0}
                 onClick={() => jumpToNextUnlabeled(index, annotations)}
                 aria-label="Jump to next unlabeled trace"
                 title="Jump to next unlabeled [N]"
-                className="px-3 py-2 text-sm font-medium rounded border border-gray-300 text-gray-600 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                className="flex items-center justify-center gap-1 px-3 py-2 text-sm font-medium rounded border border-blue-300 text-blue-700 hover:bg-blue-50 disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
               >
-                Next unlabeled
-                <span className="ml-1 text-xs text-gray-400">({unlabeledCount})</span>
+                Label next
+                {unlabeledCount > 0 && (
+                  <span className="ml-1 text-xs text-blue-400">({unlabeledCount})</span>
+                )}
               </button>
-            )}
+            </div>
           </div>
+        </aside>
+      </div>
 
-          <button
-            type="button"
-            disabled={index === total - 1}
-            onClick={() => go(1)}
-            aria-label="Next trace"
-            className="flex items-center gap-1 px-3 py-2 text-sm font-medium rounded border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-          >
-            Next <span aria-hidden="true">&#8594;</span>
-          </button>
-        </div>
-
+      <nav
+        aria-label="Quick tags and keyboard shortcuts"
+        className="border-t bg-white sticky bottom-0 shadow-[0_-1px_3px_rgba(0,0,0,0.06)]"
+      >
         {topTags.length > 0 && (
           <div
             aria-label="Quick-apply failure mode tags"
-            className="border-t px-4 py-2 flex gap-2 flex-wrap"
+            className="px-4 py-2 flex gap-2 flex-wrap"
           >
             {topTags.map((tag, i) => (
               <button
@@ -445,7 +460,7 @@ export function TraceView({
           <span><kbd className="font-mono font-semibold text-gray-500">F</kbd> Fail</span>
           <span><kbd className="font-mono font-semibold text-gray-500">&#8592; &#8594;</kbd> Navigate</span>
           <span><kbd className="font-mono font-semibold text-gray-500">Enter</kbd> Next</span>
-          <span><kbd className="font-mono font-semibold text-gray-500">N</kbd> Next unlabeled</span>
+          <span><kbd className="font-mono font-semibold text-gray-500">N</kbd> Label next</span>
           {topTags.length > 0 && (
             <span><kbd className="font-mono font-semibold text-gray-500">1-{Math.min(4, topTags.length)}</kbd> Tag</span>
           )}
@@ -469,7 +484,7 @@ function VerdictButton({
   const key = isPass ? "P" : "F";
 
   const base =
-    "flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md border-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1";
+    "flex w-full items-center justify-center gap-1.5 px-4 py-2.5 text-sm font-semibold rounded-md border-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1";
   const active = isPass
     ? "bg-green-600 border-green-600 text-white"
     : "bg-red-600 border-red-600 text-white";
