@@ -46,3 +46,6 @@ next-env.d.ts
 
 # Label output (written by the app, never committed)
 /labels/
+
+# Wizard config (written by the app, may contain local file paths)
+/config/

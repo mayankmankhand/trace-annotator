@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useMemo, useState } from "react";
-import type { MappingConfig } from "@/lib/trace/types";
+import type { MappingConfig, RoleAlias } from "@/lib/trace/types";
 
 type Props = {
   fields: string[];
@@ -32,6 +32,8 @@ export function MappingStep({
       inputField: initial?.inputField ?? "",
       outputField: initial?.outputField ?? "",
       metadataPassthrough: initial?.metadataPassthrough ?? true,
+      userAlias: initial?.roleAliases?.find((a) => a.to === "user")?.from ?? "",
+      assistantAlias: initial?.roleAliases?.find((a) => a.to === "assistant")?.from ?? "",
     }),
     [initial],
   );
@@ -42,8 +44,19 @@ export function MappingStep({
   const [metadataPassthrough, setMetadataPassthrough] = useState(
     initialValues.metadataPassthrough,
   );
+  const [userAlias, setUserAlias] = useState(initialValues.userAlias);
+  const [assistantAlias, setAssistantAlias] = useState(initialValues.assistantAlias);
 
   const canConfirm = inputField !== "" && outputField !== "";
+
+  function buildRoleAliases(): RoleAlias[] {
+    const aliases: RoleAlias[] = [];
+    const u = userAlias.trim();
+    const a = assistantAlias.trim();
+    if (u && u.toLowerCase() !== "user") aliases.push({ from: u, to: "user" });
+    if (a && a.toLowerCase() !== "assistant") aliases.push({ from: a, to: "assistant" });
+    return aliases;
+  }
 
   return (
     <div className="space-y-6">
@@ -105,6 +118,13 @@ export function MappingStep({
         </span>
       </label>
 
+      <RoleAliasSection
+        userAlias={userAlias}
+        assistantAlias={assistantAlias}
+        onUserAlias={setUserAlias}
+        onAssistantAlias={setAssistantAlias}
+      />
+
       <div className="flex justify-between pt-4 border-t">
         <button
           type="button"
@@ -116,19 +136,95 @@ export function MappingStep({
         <button
           type="button"
           disabled={!canConfirm}
-          onClick={() =>
+          onClick={() => {
+            const roleAliases = buildRoleAliases();
             onConfirm({
               idField,
               inputField,
               outputField,
               metadataPassthrough,
-            })
-          }
+              ...(roleAliases.length > 0 ? { roleAliases } : {}),
+            });
+          }}
           className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
         >
           Preview
         </button>
       </div>
+    </div>
+  );
+}
+
+type RoleAliasSectionProps = {
+  userAlias: string;
+  assistantAlias: string;
+  onUserAlias: (v: string) => void;
+  onAssistantAlias: (v: string) => void;
+};
+
+function RoleAliasSection({
+  userAlias,
+  assistantAlias,
+  onUserAlias,
+  onAssistantAlias,
+}: RoleAliasSectionProps) {
+  return (
+    <details className="group">
+      <summary className="cursor-pointer text-sm font-medium text-gray-700 list-none flex items-center gap-1 select-none">
+        <span className="text-gray-400 group-open:rotate-90 transition-transform inline-block">&#9654;</span>
+        Role name mapping
+        <span className="ml-1 text-xs font-normal text-gray-400">(optional)</span>
+      </summary>
+      <div className="mt-3 space-y-3 pl-4">
+        <p className="text-xs text-gray-500">
+          If your data uses different names for message roles - like &ldquo;human&rdquo; instead
+          of &ldquo;user&rdquo;, or &ldquo;AI&rdquo; instead of &ldquo;assistant&rdquo; - enter your names here.
+          Leave blank if your data already uses the standard names.
+        </p>
+        <div className="grid grid-cols-2 gap-3">
+          <AliasInput
+            label='Your name for "user"'
+            placeholder="e.g. human"
+            value={userAlias}
+            onChange={onUserAlias}
+          />
+          <AliasInput
+            label='Your name for "assistant"'
+            placeholder="e.g. AI"
+            value={assistantAlias}
+            onChange={onAssistantAlias}
+          />
+        </div>
+      </div>
+    </details>
+  );
+}
+
+function AliasInput({
+  label,
+  placeholder,
+  value,
+  onChange,
+}: {
+  label: string;
+  placeholder: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const id = useId();
+  return (
+    <div>
+      <label htmlFor={id} className="block text-xs font-medium text-gray-700 mb-1">
+        {label}
+      </label>
+      <input
+        id={id}
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+      />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import type { WizardConfig } from "@/lib/config/types";
 import {
   checkFileSize,
   detectFormat,
@@ -63,8 +64,18 @@ export function Wizard({ onDone }: { onDone: (traces: Trace[]) => void }) {
   const [error, setError] = useState<string | null>(null);
   const [source, setSource] = useState<LoadedSource | null>(null);
   const [mapping, setMapping] = useState<MappingConfig | null>(null);
+  const [savedConfig, setSavedConfig] = useState<WizardConfig | null>(null);
   const [traces, setTraces] = useState<Trace[] | null>(null);
   const [parsing, setParsing] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/config")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { ok: boolean; config?: WizardConfig } | null) => {
+        if (data?.ok && data.config) setSavedConfig(data.config);
+      })
+      .catch(() => {});
+  }, []);
 
   function reset() {
     setError(null);
@@ -141,7 +152,7 @@ export function Wizard({ onDone }: { onDone: (traces: Trace[]) => void }) {
         setTraces(applied.value);
         setStep("preview");
       } else {
-        setMapping(null);
+        setMapping(savedConfig ?? null);
         setStep("mapping");
       }
     } finally {
@@ -161,6 +172,17 @@ export function Wizard({ onDone }: { onDone: (traces: Trace[]) => void }) {
     setMapping(config);
     setTraces(applied.value);
     setStep("preview");
+  }
+
+  function handleConfirmDone() {
+    if (!traces || !mapping) return;
+    const config: WizardConfig = { ...mapping, savedAt: new Date().toISOString() };
+    fetch("/api/config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ config }),
+    }).catch(() => {});
+    onDone(traces);
   }
 
   return (
@@ -226,7 +248,7 @@ export function Wizard({ onDone }: { onDone: (traces: Trace[]) => void }) {
               setError(null);
               setStep("mapping");
             }}
-            onConfirm={() => onDone(traces)}
+            onConfirm={handleConfirmDone}
           />
         )}
       </div>
