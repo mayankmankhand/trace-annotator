@@ -23,7 +23,14 @@ This is a BYO-data tool. Real trace data is never committed and is gitignored by
 
 ## Try it
 
-Not yet runnable. The Next.js skeleton lands in [issue #1](../../issues/1). Watch the [open issues](../../issues) for progress, or skim the list there to see what is in flight.
+```bash
+git clone https://github.com/mayankmankhand/Observability.git
+cd Observability
+npm install
+npm run dev
+```
+
+Then open http://localhost:3000 in your browser. The placeholder home page confirms the skeleton is up. Real labeling features land issue by issue, see [open issues](../../issues) for status.
 
 ## Status
 

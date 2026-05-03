@@ -1,35 +1,33 @@
 #!/usr/bin/env node
 
 /**
- * Ask Gemini - Automated AI Peer Review Script
+ * Ask GPT - Automated AI Peer Review Script
  *
- * Standalone Node.js script for running peer review debates using Google Gemini.
- * Handles Gemini API calls, manages debate context, and orchestrates multi-turn
+ * Standalone Node.js script for running peer review debates using ChatGPT.
+ * Handles OpenAI API calls, manages debate context, and orchestrates multi-turn
  * review cycles. Can be invoked from CLI, Cursor, or integrated into workflows.
  *
  * Intentionally kept as a standalone script (no shared provider module) for
  * independent model flexibility, per-provider error handling, and simpler debugging.
  *
  * Commands:
- *   review   - Get initial review from Gemini
- *   respond  - Get Gemini's response to Claude's feedback
+ *   review   - Get initial review from ChatGPT
+ *   respond  - Get ChatGPT's response to Claude's feedback
  *   summary  - Generate final debate summary
  *
  * Usage:
- *   node scripts/ask-gemini.js review --context-file <path> [--review-type <type>]
- *   node scripts/ask-gemini.js respond --context-file <path> --debate-file <path>
- *   node scripts/ask-gemini.js summary --context-file <path> --debate-file <path>
+ *   node .claude/scripts/ask-gpt.js review --context-file <path> [--review-type <type>]
+ *   node .claude/scripts/ask-gpt.js respond --context-file <path> --debate-file <path>
+ *   node .claude/scripts/ask-gpt.js summary --context-file <path> --debate-file <path>
  * 
  * Environment:
- *   GEMINI_API_KEY            Required for Gemini API calls
- *   GEMINI_MODEL              Optional model override (default: gemini-3.1-pro-preview)
- *   GEMINI_USE_CONCAT_PROMPT  Set to "1" to use concatenated prompts instead of systemInstruction
+ *   OPENAI_API_KEY   Required for ChatGPT API calls
+ *   GPT_MODEL        Optional model override (default: gpt-5.4)
  * 
  * Scope & Assumptions:
  *   - Designed for Linux/WSL environments
  *   - Expects simple .env.local format (KEY=value, no quotes needed)
  *   - Fail-fast philosophy with one transparent retry on transient errors
- *   - SDK version: @google/generative-ai ^0.24.x (supports systemInstruction)
  */
 
 const fs = require('fs');
@@ -42,7 +40,7 @@ const path = require('path');
  * For production use, consider the 'dotenv' package which handles
  * more edge cases (quoted values, multiline, variable expansion).
  */
-const envPath = path.join(__dirname, '..', '.env.local');
+const envPath = path.join(__dirname, '..', '..', '.env.local');
 if (fs.existsSync(envPath)) {
   const envContent = fs.readFileSync(envPath, 'utf-8');
   envContent.split('\n').forEach(line => {
@@ -67,9 +65,8 @@ if (fs.existsSync(envPath)) {
 
 // Configuration
 const CONFIG = {
-  model: process.env.GEMINI_MODEL || 'gemini-3.1-pro-preview',
+  model: process.env.GPT_MODEL || 'gpt-5.4',
   maxTokens: 4096,
-  useConcatPrompt: process.env.GEMINI_USE_CONCAT_PROMPT === '1',
   retryDelayMs: 1000,
 };
 
@@ -78,16 +75,16 @@ const MAX_FILE_SIZE = 500 * 1024; // 500KB
 
 // Error messages
 const ERR = {
-  MISSING_KEY: 'GEMINI_API_KEY not found. Add it to .env.local',
+  MISSING_KEY: 'OPENAI_API_KEY not found. Add it to .env.local',
   MISSING_ARG: (arg) => `Missing required argument: ${arg}`,
   FILE_NOT_FOUND: (f) => `File not found: ${f}`,
   FILE_TOO_LARGE: (f, sizeMB) =>
     `File is too large (${sizeMB} MB). Maximum size is 500KB. Try a smaller file or use /package-review to select specific files.`,
-  API_ERROR: (msg) => `Gemini API error: ${msg}`,
+  API_ERROR: (msg) => `OpenAI API error: ${msg}`,
   UNKNOWN_CMD: (cmd) => `Unknown command: ${cmd}. Use review, respond, or summary.`,
 };
 
-// Prompt templates for Gemini review debates
+// Prompt templates
 const PROMPTS = {
   reviewer: `You are a senior engineer conducting a peer review. Your role is to provide constructive, actionable feedback.
 
@@ -136,7 +133,7 @@ Ongoing disagreements with your updated perspective
 ## New Observations
 Any new points based on the author's response`,
 
-  summary: `You are summarizing a peer review debate between two engineers (Gemini as Reviewer, Claude as Author). Produce a clear, actionable summary.
+  summary: `You are summarizing a peer review debate between two engineers (ChatGPT as Reviewer, Claude as Author). Produce a clear, actionable summary.
 
 Output this exact structure:
 
@@ -225,17 +222,17 @@ function parseArgs() {
  */
 function printHelp() {
   console.log(`
-Ask Gemini - Automated AI Peer Review
+Ask GPT - Automated AI Peer Review
 
 Commands:
-  review    Get initial review from Gemini
-  respond   Get Gemini's response to Claude's feedback
+  review    Get initial review from ChatGPT
+  respond   Get ChatGPT's response to Claude's feedback
   summary   Generate final debate summary
 
 Usage:
-  node scripts/ask-gemini.js review --context-file <path> [--review-type <type>]
-  node scripts/ask-gemini.js respond --context-file <path> --debate-file <path>
-  node scripts/ask-gemini.js summary --context-file <path> --debate-file <path>
+  node .claude/scripts/ask-gpt.js review --context-file <path> [--review-type <type>]
+  node .claude/scripts/ask-gpt.js respond --context-file <path> --debate-file <path>
+  node .claude/scripts/ask-gpt.js summary --context-file <path> --debate-file <path>
 
 Options:
   --context-file   Path to file with content to review (required)
@@ -244,19 +241,18 @@ Options:
   --help           Show this help message
 
 Environment:
-  GEMINI_API_KEY            Required for Gemini API calls
-  GEMINI_MODEL              Model to use (default: gemini-3.1-pro-preview)
-  GEMINI_USE_CONCAT_PROMPT  Set to "1" to use fallback concatenated prompts
+  OPENAI_API_KEY   Required for ChatGPT API calls
+  GPT_MODEL        Model to use (default: gpt-5.4)
 
 Examples:
   # Initial review
-  node scripts/ask-gemini.js review --context-file context.md --review-type plan
+  node .claude/scripts/ask-gpt.js review --context-file context.md --review-type plan
 
-  # After Claude responds, get Gemini's follow-up
-  node scripts/ask-gemini.js respond --context-file context.md --debate-file debate.md
+  # After Claude responds, get ChatGPT's follow-up
+  node .claude/scripts/ask-gpt.js respond --context-file context.md --debate-file debate.md
 
   # Generate final summary
-  node scripts/ask-gemini.js summary --context-file context.md --debate-file debate.md
+  node .claude/scripts/ask-gpt.js summary --context-file context.md --debate-file debate.md
   `);
 }
 
@@ -283,37 +279,19 @@ function readFile(filePath) {
 }
 
 /**
- * Initialize GoogleGenerativeAI client.
- * Creates the client once; call getModel() to get a model for a specific prompt.
+ * Initialize OpenAI client.
  */
-function initGemini() {
-  const apiKey = process.env.GEMINI_API_KEY?.trim();
+function initOpenAI() {
+  const apiKey = process.env.OPENAI_API_KEY?.trim();
   if (!apiKey) {
     throw new Error(ERR.MISSING_KEY);
   }
 
-  const { GoogleGenerativeAI } = require('@google/generative-ai');
-  return new GoogleGenerativeAI(apiKey);
-}
-
-/**
- * Get a generative model from the client with the given system prompt.
- * Uses systemInstruction when available, unless fallback mode is enabled.
- */
-function getModel(client, systemPrompt) {
-  const modelConfig = {
-    model: CONFIG.model,
-    generationConfig: {
-      maxOutputTokens: CONFIG.maxTokens,
-    },
-  };
-
-  // Use systemInstruction unless fallback mode is enabled
-  if (!CONFIG.useConcatPrompt && systemPrompt) {
-    modelConfig.systemInstruction = systemPrompt;
-  }
-
-  return client.getGenerativeModel(modelConfig);
+  const OpenAI = require('openai').default;
+  return new OpenAI({
+    apiKey,
+    maxRetries: 0,
+  });
 }
 
 /**
@@ -324,18 +302,10 @@ function sleep(ms) {
 }
 
 /**
- * Call Gemini with the given prompts.
- * Uses systemInstruction by default, falls back to concatenation if GEMINI_USE_CONCAT_PROMPT=1.
+ * Call ChatGPT with the given prompts.
  * Includes one transparent retry on transient errors.
  */
-async function callGemini(client, systemPrompt, userPrompt) {
-  const model = getModel(client, systemPrompt);
-
-  // Build the prompt based on mode
-  const prompt = CONFIG.useConcatPrompt
-    ? `${systemPrompt}\n\n---\n\n${userPrompt}`
-    : userPrompt;
-
+async function callChatGPT(client, system, user) {
   let lastError;
 
   // Try up to 2 times (initial + 1 retry)
@@ -346,11 +316,19 @@ async function callGemini(client, systemPrompt, userPrompt) {
     }, 10000);
 
     try {
-      const result = await model.generateContent(prompt);
-      clearTimeout(progressTimer);
-      const response = result.response;
-      const text = response.text();
+      // Using max_completion_tokens (not max_tokens) as required by newer OpenAI models (gpt-4+)
+      // See: https://platform.openai.com/docs/api-reference/chat/create
+      const response = await client.chat.completions.create({
+        model: CONFIG.model,
+        max_completion_tokens: CONFIG.maxTokens,
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: user },
+        ],
+      });
 
+      clearTimeout(progressTimer);
+      const text = response.choices[0]?.message?.content;
       return typeof text === 'string' ? text.trim() : '';
     } catch (error) {
       clearTimeout(progressTimer);
@@ -377,10 +355,10 @@ async function callGemini(client, systemPrompt, userPrompt) {
 }
 
 /**
- * Command: Initial review from Gemini.
+ * Command: Initial review from ChatGPT.
  */
 async function cmdReview(client, context, reviewType) {
-  console.log('📝 Getting initial review from Gemini...\n');
+  console.log('📝 Getting initial review from ChatGPT...\n');
 
   const userMessage = `Please review the following ${reviewType}:
 
@@ -392,9 +370,9 @@ ${context}
 
 Provide your peer review following the structure in your instructions.`;
 
-  const response = await callGemini(client, PROMPTS.reviewer, userMessage);
+  const response = await callChatGPT(client, PROMPTS.reviewer, userMessage);
 
-  console.log('--- Gemini Review ---\n');
+  console.log('--- ChatGPT Review ---\n');
   console.log(response);
   console.log('\n--- End Review ---');
 
@@ -402,10 +380,10 @@ Provide your peer review following the structure in your instructions.`;
 }
 
 /**
- * Command: Get Gemini's response to Claude's feedback.
+ * Command: Get ChatGPT's response to Claude's feedback.
  */
 async function cmdRespond(client, context, debateHistory) {
-  console.log('🔄 Getting Gemini response to Claude...\n');
+  console.log('🔄 Getting ChatGPT response to Claude...\n');
 
   const userMessage = `Original content under review:
 
@@ -425,9 +403,9 @@ ${debateHistory}
 
 Continue the peer review discussion. Respond to the author's latest points following the structure in your instructions.`;
 
-  const response = await callGemini(client, PROMPTS.debateFollowup, userMessage);
+  const response = await callChatGPT(client, PROMPTS.debateFollowup, userMessage);
 
-  console.log('--- Gemini Response ---\n');
+  console.log('--- ChatGPT Response ---\n');
   console.log(response);
   console.log('\n--- End Response ---');
 
@@ -458,7 +436,7 @@ ${debateHistory}
 
 Synthesize this debate into the structured summary format in your instructions.`;
 
-  const response = await callGemini(client, PROMPTS.summary, userMessage);
+  const response = await callChatGPT(client, PROMPTS.summary, userMessage);
 
   console.log('--- Debate Summary ---\n');
   console.log(response);
@@ -479,7 +457,7 @@ async function main() {
   }
 
   try {
-    const client = initGemini();
+    const client = initOpenAI();
 
     switch (args.command) {
       case 'review': {

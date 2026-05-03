@@ -2,7 +2,12 @@
   "permissions": {
     "allow": [
       "Bash(bash -c 'TEMP_DIR=$\\(mktemp -d\\) && git clone --depth 1 https://github.com/mayankmankhand/llm-peer-review.git \"$TEMP_DIR\" && bash \"$TEMP_DIR/scripts/setup/setup.sh\" \"/home/mayank/Projects/Observability\" && rm -rf \"$TEMP_DIR\"')",
-      "Bash(sudo -n true)"
+      "Bash(sudo -n true)",
+      "Bash(sort -t'#' -k2 -n)",
+      "Skill(learning-opportunity)",
+      "Skill(learning-opportunity:*)",
+      "Edit(/.claude/skills/shared/**)",
+      "Bash(npm view *)"
     ]
   }
 }

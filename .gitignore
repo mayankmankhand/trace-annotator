@@ -38,6 +38,7 @@ INDEX.md
 # Next.js build output (added once skeleton lands)
 .next/
 next-env.d.ts
+*.tsbuildinfo
 
 # User trace data (BYO, never committed)
 /data/

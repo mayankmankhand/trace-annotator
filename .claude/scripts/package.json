@@ -1,0 +1,13 @@
+{
+  "name": "trace-annotator-toolkit",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Author tooling: AI peer-review and headless browser scripts. Not part of the Trace Annotator app.",
+  "type": "commonjs",
+  "dependencies": {
+    "@axe-core/playwright": "^4.11.3",
+    "@google/generative-ai": "^0.24.1",
+    "openai": "^6.35.0",
+    "playwright-core": "^1.59.1"
+  }
+}
