@@ -34,3 +34,14 @@ INDEX.md
 
 # Toolkit backups (originals preserved by setup.sh before overwrite/delete)
 .toolkit-backup-*/
+
+# Next.js build output (added once skeleton lands)
+.next/
+next-env.d.ts
+
+# User trace data (BYO, never committed)
+/data/
+/traces/
+
+# Label output (written by the app, never committed)
+/labels/
