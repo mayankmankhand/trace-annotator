@@ -19,7 +19,12 @@ Most existing labeling tools assume you already know how to do error analysis. T
 
 ## Try it with sample data
 
-The repo ships with `sample-data/recipe-chatbot-results.json`, a JSON array of 100 single-turn recipe queries and their LLM responses. Drop that file into the wizard to see the loader work end to end without bringing your own data.
+The repo ships with two synthetic fixtures:
+
+- **`fixtures/sample-chat-traces.jsonl`** - 20 single-turn chat traces from a fictional travel booking assistant. Includes a mix of good responses and common failure modes (hallucinated facts, incomplete answers, overly verbose replies). Good for a first annotation session.
+- **`sample-data/recipe-chatbot-results.json`** - 100 recipe assistant traces, an existing JSON array. Drop this into the wizard to see a larger dataset.
+
+Drop either file into the wizard to see the loader and renderer work end to end without bringing your own data.
 
 ## Bring your own data
 
