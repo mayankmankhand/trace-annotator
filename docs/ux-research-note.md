@@ -2,7 +2,7 @@
 
 **Issue:** #10  
 **Date:** 2026-05-03  
-**Status:** Phase A - research only. Phase B (apply to CLAUDE.md + components) requires user review first.
+**Status:** Phase A research locked, Phase B applied. Section 4.1 amended after user review.
 
 ---
 
@@ -85,13 +85,13 @@ All three default to light theme. All three show one trace at a time when you en
 
 These are recommendations for the user to approve before Phase B applies them.
 
-### 4.1 Layout: Single-column, one trace at a time
+### 4.1 Layout: 75/25 split with right-side label panel
 
-**Recommendation:** Do not use a two-panel layout. Show one trace at a time in a single centered column, with a fixed top-bar carrying the progress indicator and a bottom-bar carrying the label actions.
+**Decision (amended by user):** Trace content takes 75% of the viewport on the left. A 25% right-side panel carries the label actions (Pass, Fail) and navigation (Previous, Next, Label next). A fixed top bar carries progress and filename. A fixed bottom bar carries quick-apply tag chips and always-visible keyboard hints.
 
-**Why:** Two-panel layouts (Braintrust, LangSmith) make sense when you want to reference a list while reading. For annotation, you want the reviewer's full attention on one trace. Removing the list sidebar reduces distraction and prevents "list anxiety" (the visible pile of remaining work).
+**Why amended:** The original recommendation put label actions in a bottom bar. The user preferred a right-side action panel because it keeps Pass/Fail next to the trace at the same eye-level, mirrors how labelers in tools like Mechanical Turk and Label Studio work, and makes the action buttons larger and more reachable than a horizontal toolbar. Bottom bar still carries keyboard hints (per 4.4) and quick-apply tag chips.
 
-**Exception:** A small persistent counter in the top bar (e.g., "7 of 120") preserves progress visibility without showing the full list.
+**No list sidebar:** A small persistent counter in the top bar (e.g., "7 of 120 labeled") preserves progress visibility without showing the full list of remaining traces. Avoids "list anxiety" while preserving status visibility.
 
 ---
 
@@ -132,11 +132,11 @@ These map exactly to the Tailwind tokens already in use in the wizard.
 
 ---
 
-### 4.5 Chat bubble style: Role color-coded, left/right aligned
+### 4.5 Chat bubble style: Role color-coded, standard chat-app alignment
 
-**Recommendation:** User messages: left-aligned, light gray bubble. Assistant messages: right-aligned, blue-tinted bubble. System messages: centered, italic, muted text (no bubble). Tool calls: full-width card with monospace function name and collapsible arguments.
+**Decision (corrected):** User messages: right-aligned, blue bubble. Assistant messages: left-aligned, light gray bubble. System messages: centered, italic, muted with collapsible expansion. Tool calls: full-width card with monospace function name and collapsible arguments.
 
-**Why:** Braintrust uses role badges and colored text but not bubbles. Bubbles are the pattern users already know from consumer chat apps. Beginner PMs will recognize the layout instantly without needing a legend.
+**Why:** This matches the convention from iMessage, WhatsApp, Slack, and ChatGPT, where "your" messages sit on the right in your accent color and the other party's messages sit on the left in neutral gray. Beginner PMs will recognize the layout instantly. The earlier draft of this note had user/assistant reversed; the implementation in `ChatRenderer.tsx` was correct from the start, and section 4.5 has been updated to match.
 
 ---
 
@@ -159,12 +159,14 @@ These map exactly to the Tailwind tokens already in use in the wizard.
 
 ---
 
-## 7. Next Steps (Phase B - requires user approval)
+## 7. Phase B Applied (2026-05-03)
 
-Phase B applies these decisions:
-- Add the decision table to CLAUDE.md under a new "Design Decisions" section
-- Apply color tokens consistently to existing wizard components
-- Scaffold the top bar (progress) and bottom bar (keyboard hints) stubs for the trace view
-- Ensure the chat renderer AC in issue #3 follows the bubble style from section 4.5
+- Section 4.1 amended after user review (right-side label panel instead of bottom-bar actions)
+- Section 4.5 corrected (user-right-blue / assistant-left-gray, matching the implementation)
+- Decision summary added to `CLAUDE.md` under a new "Design Decisions" section
+- `TraceView.tsx` refactored to a 75/25 split with right-side action panel
+- Quick-apply tag chips and always-visible keyboard hints retained in the bottom bar
+- Color tokens (gray/blue/green/red) verified across wizard, trace view, tag panel, coaching tip
+- Color-accessibility cue and multi-turn pagination intentionally deferred to v2
 
 Phase B should NOT start until the user approves this note.

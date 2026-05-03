@@ -81,6 +81,31 @@ These come from established HCI practice and underpin every v1 feature. Preserve
 - Consistency: shared taxonomies reduce reviewer drift
 - Motivation: visible progress materially increases session length
 
+## Design Decisions
+
+Locked-in v1 visual and interaction choices. Apply consistently across new components. Full rationale in [docs/ux-research-note.md](docs/ux-research-note.md). Do not re-litigate these without amending the research note first.
+
+| Area | Decision |
+|---|---|
+| Layout | 75/25 split. Trace content fills the left 75% in a single centered column. A right 25% panel carries Pass / Fail / Previous / Next / Label-next buttons. No left list sidebar. |
+| Top bar | Always visible. Carries filename, "Trace X of Y" counter, and "X of Y labeled" subline. |
+| Bottom bar | Always visible. Carries quick-apply tag chips (top 4 most-recent) and keyboard hints (`P` Pass, `F` Fail, arrows Navigate, `Enter` Next, `N` Label next, `1-4` Tag). |
+| Density | Medium. Trace body fills ~70-80% of viewport height. No internal scrolling for typical chat turns. Metadata and "Show JSON" collapsed by default. |
+| Theme | Light only in v1. Background `bg-gray-50`, surfaces `bg-white`. No dark mode. |
+| Primary text | `text-gray-900`. Secondary `text-gray-600`. Muted `text-gray-400`. |
+| Accent color | Blue (`bg-blue-600` / `text-blue-700` / borders `border-blue-300`) for primary actions and the "Label next" CTA. |
+| Pass / Fail | Pass uses green (`bg-green-600` active, `bg-green-100`/`text-green-800` badge). Fail uses red (`bg-red-600` active, `bg-red-100`/`text-red-800` badge). |
+| Edited indicator | Orange (`bg-orange-100` / `text-orange-700`) chip in trace header. |
+| Tags | Violet (`bg-violet-100` / `text-violet-800` chips, `bg-violet-600` active). Quick-apply chips show `[1]`-`[4]` keyboard hint inline. |
+| Chat bubbles | User right-aligned in blue (`bg-blue-600 text-white`). Assistant left-aligned in light gray (`bg-gray-100 border-gray-200`). System centered, italic, collapsible. Tool calls full-width monospace card. Matches iMessage / WhatsApp / ChatGPT convention. |
+| Coaching tips | Blue card (`bg-blue-50 border-blue-200`) on traces 1-5. Dismissible per session and globally. Re-trigger via "? tips" in top bar. |
+
+**Deferred to v2 (do not add in v1):**
+- Dark mode
+- Color-accessibility cue alongside pass/fail color (icon or shape redundancy)
+- Multi-turn chat pagination ("show first 5 turns" + load more)
+- Mobile / small-screen layout
+
 ## Skills
 
 Review capabilities live in `.claude/skills/` as SKILL.md files. They auto-create slash commands and are discoverable by subagents. Shared reference files in `.claude/skills/shared/`. Use `/review` for unified auto-detected review or individual `/review-code`, `/review-ux`, etc. for focused reviews.
