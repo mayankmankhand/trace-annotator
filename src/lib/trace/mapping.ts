@@ -1,4 +1,4 @@
-import type { MappingConfig, ParseResult, Trace } from "./types";
+import type { MappingConfig, Message, ParseResult, Role, RoleAlias, Trace } from "./types";
 
 const KNOWN_ID_FIELDS = ["id", "trace_id", "uuid"];
 const KNOWN_INPUT_FIELDS = [
@@ -58,12 +58,15 @@ export function autoRecognize(fields: string[]): MappingConfig | null {
 
 function looksLikeMessageList(value: unknown): boolean {
   if (!Array.isArray(value)) return false;
-  return value.every(
-    (item) =>
-      item !== null &&
-      typeof item === "object" &&
-      "role" in item &&
-      "content" in item,
+  return (
+    value.length > 0 &&
+    value.every(
+      (item) =>
+        item !== null &&
+        typeof item === "object" &&
+        "role" in item &&
+        "content" in item,
+    )
   );
 }
 
@@ -76,10 +79,37 @@ function stringifyId(value: unknown): string {
   return JSON.stringify(value);
 }
 
+function resolveRole(raw: string, aliases: RoleAlias[]): Role {
+  const lower = raw.toLowerCase();
+  for (const alias of aliases) {
+    if (alias.from.toLowerCase() === lower) return alias.to;
+  }
+  const known: Role[] = ["user", "assistant", "system", "tool"];
+  return known.includes(raw as Role) ? (raw as Role) : "assistant";
+}
+
+function toMessages(
+  value: unknown,
+  defaultRole: Role,
+  aliases: RoleAlias[],
+): Message[] | null {
+  if (typeof value === "string") {
+    return [{ role: defaultRole, content: value }];
+  }
+  if (looksLikeMessageList(value)) {
+    return (value as Array<{ role: string; content: unknown }>).map((m) => ({
+      role: resolveRole(m.role, aliases),
+      content: typeof m.content === "string" ? m.content : JSON.stringify(m.content),
+    }));
+  }
+  return null;
+}
+
 export function applyMapping(
   rows: Record<string, unknown>[],
   config: MappingConfig,
 ): ParseResult<Trace[]> {
+  const aliases = config.roleAliases ?? [];
   const out: Trace[] = [];
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
@@ -91,26 +121,14 @@ export function applyMapping(
         error: `Row ${i + 1} is missing both "${config.inputField}" and "${config.outputField}".`,
       };
     }
-    if (
-      looksLikeMessageList(inputValue) ||
-      looksLikeMessageList(outputValue)
-    ) {
+    const inputMessages = toMessages(inputValue ?? "", "user", aliases);
+    const outputMessages = toMessages(outputValue ?? "", "assistant", aliases);
+    if (!inputMessages || !outputMessages) {
       return {
         ok: false,
         error:
-          `Row ${i + 1} appears to contain multi-turn messages. ` +
-          `v1 supports single-turn traces only. Multi-turn support is tracked as a separate issue.`,
-      };
-    }
-    if (
-      (inputValue !== null && inputValue !== undefined && typeof inputValue !== "string") ||
-      (outputValue !== null && outputValue !== undefined && typeof outputValue !== "string")
-    ) {
-      return {
-        ok: false,
-        error:
-          `Row ${i + 1}: "${config.inputField}" and "${config.outputField}" must be text. ` +
-          `Got a non-string value. Pick a different field, or convert it before loading.`,
+          `Row ${i + 1}: "${config.inputField}" and "${config.outputField}" must be text or message arrays. ` +
+          `Got an unexpected value type. Pick a different field, or convert it before loading.`,
       };
     }
     const id = config.idField
@@ -118,8 +136,8 @@ export function applyMapping(
       : String(i + 1);
     const trace: Trace = {
       id,
-      input: [{ role: "user", content: (inputValue as string) ?? "" }],
-      output: [{ role: "assistant", content: (outputValue as string) ?? "" }],
+      input: inputMessages,
+      output: outputMessages,
     };
     if (config.metadataPassthrough) {
       const metadata: Record<string, unknown> = Object.create(null);

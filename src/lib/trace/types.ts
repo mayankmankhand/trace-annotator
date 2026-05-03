@@ -23,9 +23,15 @@ export type CsvParsed = {
   rows: Record<string, string>[];
 };
 
+export type RoleAlias = {
+  from: string;
+  to: Role;
+};
+
 export type MappingConfig = {
   idField: string | null;
   inputField: string;
   outputField: string;
   metadataPassthrough: boolean;
+  roleAliases?: RoleAlias[];
 };
