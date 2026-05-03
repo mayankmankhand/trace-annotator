@@ -265,7 +265,29 @@ export function applyMapping(
     attachMetadata(trace, row, config);
     out.push(trace);
   }
+  // Trace IDs are the keys we annotate by. Duplicates would silently overwrite
+  // each other's labels. Bail out with the row numbers so the user can fix the
+  // file or pick a different ID field, rather than ship corrupt labels later.
+  const dupeError = findDuplicateIdError(out);
+  if (dupeError) return { ok: false, error: dupeError };
   return { ok: true, value: out };
+}
+
+function findDuplicateIdError(traces: Trace[]): string | null {
+  const seen = new Map<string, number>();
+  for (let i = 0; i < traces.length; i++) {
+    const id = traces[i].id;
+    const prev = seen.get(id);
+    if (prev !== undefined) {
+      return (
+        `Two rows have the same trace id "${id}" (rows ${prev + 1} and ${i + 1}). ` +
+        `Labels are stored per id, so duplicates would overwrite each other. ` +
+        `Pick a different ID field in the wizard, or de-duplicate the file before loading.`
+      );
+    }
+    seen.set(id, i);
+  }
+  return null;
 }
 
 function attachMetadata(

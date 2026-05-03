@@ -28,6 +28,10 @@ type Phase =
       fingerprint: string;
       initialAnnotations: Annotations;
       initialIndex: number;
+      // True when the initial load from IndexedDB threw (e.g., Safari
+      // private mode, browser storage disabled). The annotator surfaces
+      // this so the user knows their work might not persist.
+      storageUnavailable?: boolean;
     };
 
 function labelRowsToAnnotations(rows: LabelRow[]): Annotations {
@@ -57,6 +61,7 @@ export function AppShell() {
   async function handleWizardDone(traces: Trace[], filename: string) {
     setPhase({ kind: "checking", traces, filename });
     const fingerprint = computeFingerprint(traces, filename);
+    let storageUnavailable = false;
     try {
       const [state, rows] = await Promise.all([
         loadSessionState(fingerprint),
@@ -74,8 +79,15 @@ export function AppShell() {
         });
         return;
       }
-    } catch {
-      // Storage unavailable (private mode etc.) - fall through to fresh start.
+    } catch (err) {
+      // Storage unavailable (Safari private mode, browser storage disabled,
+      // quota exceeded). Don't silently swallow - log so the user can debug,
+      // and pass a flag down so the annotator's save indicator can surface a
+      // persistent warning. Without this signal a v1-style "labels never
+      // persisted" bug would be invisible to the user again.
+      storageUnavailable = true;
+      // eslint-disable-next-line no-console
+      console.warn("Trace Annotator: browser storage unavailable.", err);
     }
 
     setPhase({
@@ -85,6 +97,7 @@ export function AppShell() {
       fingerprint,
       initialAnnotations: {},
       initialIndex: 0,
+      storageUnavailable,
     });
   }
 
@@ -204,6 +217,7 @@ export function AppShell() {
       fingerprint={phase.fingerprint}
       initialAnnotations={phase.initialAnnotations}
       initialIndex={phase.initialIndex}
+      storageUnavailable={phase.storageUnavailable}
       onReset={() => setPhase({ kind: "wizard" })}
     />
   );

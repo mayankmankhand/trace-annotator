@@ -4,7 +4,11 @@ The launch release. This isn't a feature dump - it's the first version where a n
 
 ## The hero moment
 
-Drop a real trace file - including the messy `{"traces": [...]}` envelope shape with nested `messages[]` arrays and OpenAI-style `tool_calls` - into the wizard. The wizard auto-detects what it's looking at, shows a confirmation banner ("Found 84 traces using `traces[]` and a nested messages[] array. Does this look right?"), renders the first trace exactly the way the labeling view will, and asks once: "what kind of app is this?" From there, you label with the keyboard.
+Drop a real, messy trace file into the wizard. It just works.
+
+The wizard auto-detects common envelope shapes (wrapped JSON like `{"traces": [...]}`, nested chat with tool calls, JSONL, CSV) and shows a confirmation banner so you can verify before committing. It renders the first trace exactly the way the labeling view will, and asks once what kind of app you're evaluating to seed your failure-mode tags.
+
+From there, label with the keyboard. The first 5 traces show coaching cards that explain the method as you go.
 
 ## What's new in v2.0
 
@@ -64,7 +68,9 @@ npm run dev
 
 ## Migration from v1
 
-Open the app once after upgrading. The localStorage key for "coaching dismissed" was bumped to `:v2`, so coaching reappears on trace 1. Server-side label files at `labels/session.jsonl` are no longer used; if you have unfinished work there, run v1 once more, click Export to download the JSONL, then continue in v2.
+**Skip this section if you didn't run v1 already.** New users have nothing to migrate.
+
+If you did run v1: open the app once after upgrading. The localStorage key for "coaching dismissed" was bumped to `:v2`, so coaching reappears on trace 1 (this is intentional - the v2 cards are different). Server-side label files at `labels/session.jsonl` are no longer used. If you have unfinished v1 work there, run v1 once more, click Export to download the JSONL, then continue in v2.
 
 ## Acknowledgments
 

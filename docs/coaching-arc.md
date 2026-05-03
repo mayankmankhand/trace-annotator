@@ -1,5 +1,7 @@
 # Coaching teaching arc (v2.0)
 
+> This doc is the design spec that the implementation in `src/components/annotator/CoachingTip.tsx` follows. Step references below (e.g. "Step 5", "Step 6") point at sections of the v2.0 launch plan in `plans/PLAN-v2-launch.md` (gitignored, lives locally). Step 5 = wizard robustness; Step 6 = coaching expansion implementation; Step 13 = visual polish.
+
 ## Goal
 
 A new PM, cold to LLM evals, should know the following by **trace 3**:
