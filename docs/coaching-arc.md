@@ -34,7 +34,7 @@ In v1, the coaching cards were written reactively: "what would be useful to say 
 >
 > Pass means the output is acceptable for its intended use. Fail means it's wrong, harmful, off-task, or low-quality enough that you'd want to fix it before showing a user.
 
-Default substitutions when no rebind has occurred: pass-key = `P`, fail-key = `F`, next-key = `Enter`.
+Default substitutions when no rebind has occurred: pass-key = `P`, fail-key = `F`, next-key = `Enter`. The placeholder mapping (which Hotkeys field becomes which placeholder) is wired in `buildTipBody()` in `src/components/annotator/CoachingTip.tsx`; that function is the source of truth for new placeholders.
 
 **Success measure:** the user gives a verdict on trace 1 within 30 seconds of seeing the card.
 
@@ -115,15 +115,16 @@ Shown once each, when the user hits these traces:
 
 These are NOT taught here as polished copy - Step 6 implements them with copy iteration.
 
-### Tips-progress chip (v2.1, traces 6-15)
+## Tips-progress chip (v2.1, traces 6-15)
 
-A small "5 tips done - keep going" chip in the trace header on traces 6-15 (1-indexed). Lightweight presence, not a card - just a pill indicating progress through the silent gap between Card 5 and the trace-25 milestone. Hidden when:
+A small "Coaching - keep going" pill rendered in the top-bar tools row on traces 6-15 (1-indexed). It is *not* a milestone card - it lives in a separate visual surface (the tools row, not the trace metadata row) and uses position-not-completion copy because the user may have session-dismissed an early card. Hidden when:
 
 - The file has fewer than 5 traces (no completed cards behind it)
+- The trace index is past 14 (1-indexed trace 15)
 - The user has dismissed it (sessionStorage flag)
-- Coaching is permanently dismissed (the chip is part of the coaching surface)
+- Coaching is inactive (`coachingActive` prop, also gated by the parent on the same value - the chip is part of the coaching surface, so a permanent coaching dismiss hides the chip too)
 
-Why this exists: without it, the coaching went silent for ~20 traces, which works against the "tool teaches the method as you label" wedge. The chip is the smallest possible affordance that maintains presence without inventing new instructional content.
+Why this exists: without it, coaching went silent for ~20 traces, which works against the "tool teaches the method as you label" wedge. The chip is the smallest possible affordance that maintains presence without inventing new instructional content.
 
 ## Self-walkthrough validation
 

@@ -47,6 +47,17 @@ export type Annotation = {
 };
 export type Annotations = Record<string, Annotation>;
 
+// Filter / sampling state shared by TraceView, FilterPicker, and FindPopover.
+// "all" is the default. Other modes restrict navigation to a subset; the
+// user still sees total counts in the top bar but Next/Prev skip
+// non-matching traces. Random sample is materialized as a fixed index set
+// so the same "sample of N" stays stable while the user works through it.
+export type Filter =
+  | { kind: "all" }
+  | { kind: "verdict"; v: Verdict | "unlabeled" | "skipped" }
+  | { kind: "tag"; tag: string }
+  | { kind: "sample"; indices: Set<number> };
+
 const EMPTY_ANNOTATION: Annotation = {
   verdict: null,
   note: "",
@@ -115,13 +126,21 @@ export function TraceView({
   // against stale state.
   const [annotations, setAnnotations, annotationsRef] =
     useStateRef<Annotations>(initialAnnotations);
-  const [coachingActive, setCoachingActive] = useState(() => isCoachingActive());
+  // Coaching + chip state default to false on first render, then load from
+  // storage in useEffect. This avoids reading sessionStorage/localStorage in
+  // the useState initializer, which would cause a hydration mismatch under
+  // SSR (server returns the default, client could otherwise return a
+  // different value). The cost is a brief invisible-coaching frame on first
+  // paint, which is acceptable - the user is reading the trace anyway.
+  const [coachingActive, setCoachingActive] = useState(false);
   // Session-level dismissal of the tips-progress chip (traces 6-15). Tracked
   // separately from the cards so dismissing the chip doesn't suppress the
   // milestone cards at trace 25/50/100.
-  const [tipsChipDismissed, setTipsChipDismissed] = useState(() =>
-    isTipsChipDismissed(),
-  );
+  const [tipsChipDismissed, setTipsChipDismissed] = useState(false);
+  useEffect(() => {
+    setCoachingActive(isCoachingActive());
+    setTipsChipDismissed(isTipsChipDismissed());
+  }, []);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>(
     storageUnavailable
       ? {
@@ -133,9 +152,11 @@ export function TraceView({
   );
   // Milestone state is per-trace-index. We reload it any time the index
   // changes so the user gets the milestone exactly when they hit that trace.
-  const [milestone, setMilestone] = useState(() =>
-    getMilestoneForIndex(fingerprint, initialIndex),
-  );
+  // Initial value is null and the useEffect below loads the real value on
+  // mount, mirroring the SSR-safe pattern used for coaching state.
+  const [milestone, setMilestone] = useState<ReturnType<
+    typeof getMilestoneForIndex
+  > | null>(null);
 
   // Undo stack: append-only log of {trace_id, before, after} entries. The
   // top of the stack is the most recent change. Cmd/Ctrl+Z pops the top
@@ -149,21 +170,9 @@ export function TraceView({
   };
   const undoStackRef = useRef<UndoEntry[]>([]);
   const [undoCount, setUndoCount] = useState(0);
-  // Used to prevent the undo action itself from re-pushing onto the stack.
-  const isUndoingRef = useRef(false);
   // Tag management panel open/closed.
   const [tagPanelOpen, setTagPanelOpen] = useState(false);
 
-  // Filter / sampling state. "all" is the default. Other modes restrict
-  // navigation to a subset; the user still sees total counts in the top bar
-  // but Next/Prev skip non-matching traces. Random sample is materialized
-  // as a fixed index set so the same "sample of N" stays stable while the
-  // user works through it.
-  type Filter =
-    | { kind: "all" }
-    | { kind: "verdict"; v: Verdict | "unlabeled" | "skipped" }
-    | { kind: "tag"; tag: string }
-    | { kind: "sample"; indices: Set<number> };
   const [filter, setFilter] = useState<Filter>({ kind: "all" });
 
   // Hotkeys can be remapped via the Settings modal. Loaded once on mount.
@@ -276,12 +285,11 @@ export function TraceView({
   );
 
   // pushUndo records a before/after snapshot for the trace currently being
-  // changed and appends a row to the persistent audit log. Skips itself
-  // when the change is being applied by the undo mechanism (otherwise
-  // undo would no-op).
+  // changed and appends a row to the persistent audit log. `undo()` writes
+  // directly through setAnnotations and never goes through pushUndo, so no
+  // re-entrancy guard is needed here.
   const pushUndo = useCallback(
     (trace_id: string, before: Annotation, after: Annotation) => {
-      if (isUndoingRef.current) return;
       const stack = undoStackRef.current;
       stack.push({ trace_id, before, after });
       // Cap stack length to bound memory.
@@ -357,7 +365,6 @@ export function TraceView({
     const last = stack.pop();
     if (!last) return;
     setUndoCount(stack.length);
-    isUndoingRef.current = true;
     setAnnotations((prev) => {
       const next = { ...prev };
       // If the previous state was empty (creation case), drop the entry
@@ -378,10 +385,6 @@ export function TraceView({
     // happened. Skipped if they're already there.
     const targetIdx = traces.findIndex((t) => t.id === last.trace_id);
     if (targetIdx >= 0 && targetIdx !== index) setIndex(targetIdx);
-    // Release the flag on the next tick so subsequent edits are recorded.
-    setTimeout(() => {
-      isUndoingRef.current = false;
-    }, 0);
   }, [index, traces, setAnnotations]);
 
   const addTagToSession = useCallback((tag: string) => {
@@ -461,6 +464,23 @@ export function TraceView({
         return;
       }
 
+      // ? = toggle coaching tips. The top-bar "? tips" button suggests this
+      // affordance, so binding the actual key keeps the label honest. When
+      // tips are active, dismiss for the session; when hidden, reset and
+      // re-show.
+      if (e.key === "?") {
+        e.preventDefault();
+        if (coachingActive) {
+          dismissCoachingSession();
+          setCoachingActive(false);
+        } else {
+          resetCoaching();
+          setCoachingActive(true);
+          setTipsChipDismissed(false);
+        }
+        return;
+      }
+
       // Match against the user's hotkey config. Both case variants are
       // accepted; arrow keys / Enter keep their case-sensitive shape.
       const k = e.key;
@@ -503,6 +523,7 @@ export function TraceView({
     toggleSkip,
     hotkeys,
     annotationsRef,
+    coachingActive,
   ]);
 
   // Refresh milestone whenever the user navigates to a new trace. Looks
@@ -515,25 +536,30 @@ export function TraceView({
   // Autosave labels through the IndexedDB primitive. Debounced so rapid
   // labeling doesn't thrash the database. The save indicator pivots through
   // "saving" -> "saved" so the user can see persistence is happening.
-  // Max-wait flush: if a labeling streak runs long enough that no actual
-  // save has happened for SAVE_MAX_WAIT_MS, the next change skips the
-  // debounce and writes immediately. Without this, a user who types
-  // continuously can lose minutes of work if the tab closes mid-streak.
+  // Max-wait flush: we track when the *first* pending change in the current
+  // streak happened (not when the last save finished). If a streak has been
+  // pending for SAVE_MAX_WAIT_MS, the next change writes immediately. This
+  // protects against losing minutes of continuous labeling if the tab
+  // closes mid-streak, while leaving the debounce intact for normal
+  // slow-paced labeling (where a single change after an idle period
+  // shouldn't bypass the debounce).
   const saveLabelsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastSaveAtRef = useRef<number>(Date.now());
+  const firstPendingAtRef = useRef<number | null>(null);
   const SAVE_DEBOUNCE_MS = 500;
   const SAVE_MAX_WAIT_MS = 3000;
   useEffect(() => {
     const rows = toRows(annotations);
     if (saveLabelsTimerRef.current) clearTimeout(saveLabelsTimerRef.current);
     setSaveStatus({ kind: "saving" });
-    const elapsedSinceSave = Date.now() - lastSaveAtRef.current;
-    const delay =
-      elapsedSinceSave >= SAVE_MAX_WAIT_MS ? 0 : SAVE_DEBOUNCE_MS;
+    if (firstPendingAtRef.current === null) {
+      firstPendingAtRef.current = Date.now();
+    }
+    const pendingFor = Date.now() - firstPendingAtRef.current;
+    const delay = pendingFor >= SAVE_MAX_WAIT_MS ? 0 : SAVE_DEBOUNCE_MS;
     saveLabelsTimerRef.current = setTimeout(() => {
       saveLabels(fingerprint, rows)
         .then(() => {
-          lastSaveAtRef.current = Date.now();
+          firstPendingAtRef.current = null;
           const at = new Date().toLocaleTimeString();
           setSaveStatus({ kind: "saved", at });
         })
@@ -548,14 +574,15 @@ export function TraceView({
     };
   }, [annotations, fingerprint]);
 
-  // Best-effort synchronous flush on tab close. The browser does not wait
-  // for promises here, so we cancel the pending debounce and fire-and-
-  // forget the write. If the tab survives long enough for IndexedDB to
-  // commit, the change is durable; if it doesn't, the next session resumes
-  // from the previous saved state. Either way, we don't sit on changes in
-  // a debounced timer that gets killed on unload.
+  // Best-effort flush when the tab is closing or the page is being hidden.
+  // The browser does not wait for promises here, so we cancel any pending
+  // debounce and fire-and-forget the write. We listen on both
+  // `beforeunload` (desktop tab close) and `visibilitychange` -> hidden
+  // (mobile background, tab switch on iOS Safari which often skips
+  // beforeunload). Without the visibilitychange branch, mobile labeling
+  // sessions could lose the last debounced batch.
   useEffect(() => {
-    function onBeforeUnload() {
+    function flushNow() {
       if (saveLabelsTimerRef.current) {
         clearTimeout(saveLabelsTimerRef.current);
         saveLabelsTimerRef.current = null;
@@ -563,8 +590,15 @@ export function TraceView({
       const rows = toRows(annotationsRef.current);
       saveLabels(fingerprint, rows).catch(() => {});
     }
-    window.addEventListener("beforeunload", onBeforeUnload);
-    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+    function onVisibility() {
+      if (document.visibilityState === "hidden") flushNow();
+    }
+    window.addEventListener("beforeunload", flushNow);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("beforeunload", flushNow);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, [fingerprint, annotationsRef]);
 
   // Autosave session state (last viewed trace) on a slightly faster cadence
@@ -635,7 +669,18 @@ export function TraceView({
             {labeledCount} of {total} labeled
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap justify-end">
+          {!tipsChipDismissed && (
+            <TipsProgressChip
+              traceIndex={index}
+              total={total}
+              coachingActive={coachingActive}
+              onDismiss={() => {
+                dismissTipsChipSession();
+                setTipsChipDismissed(true);
+              }}
+            />
+          )}
           {!coachingActive && (
             <button
               type="button"
@@ -644,8 +689,8 @@ export function TraceView({
                 setCoachingActive(true);
                 setTipsChipDismissed(false);
               }}
-              aria-label="Show coaching tips"
-              title="Restart coaching tips"
+              aria-label="Show coaching tips (toggle with ?)"
+              title="Restart coaching tips (?)"
               className="text-xs text-gray-400 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded px-1"
             >
               ? tips
@@ -720,9 +765,10 @@ export function TraceView({
 
       <div
         role="progressbar"
-        aria-valuenow={index + 1}
-        aria-valuemin={1}
+        aria-valuenow={labeledCount}
+        aria-valuemin={0}
         aria-valuemax={total}
+        aria-valuetext={`${labeledCount} of ${total} traces labeled`}
         aria-label="Annotation progress"
         className="h-1 bg-gray-200"
       >
@@ -754,16 +800,6 @@ export function TraceView({
                 <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
                   Skipped - review later
                 </span>
-              )}
-              {coachingActive && !tipsChipDismissed && (
-                <TipsProgressChip
-                  traceIndex={index}
-                  total={total}
-                  onDismiss={() => {
-                    dismissTipsChipSession();
-                    setTipsChipDismissed(true);
-                  }}
-                />
               )}
               {annotation.tags.map((t) => (
                 <span
@@ -881,7 +917,9 @@ export function TraceView({
               <button
                 type="button"
                 disabled={unlabeledCount === 0}
-                onClick={() => jumpToNextUnlabeled(index, annotations)}
+                onClick={() =>
+                  jumpToNextUnlabeled(index, annotationsRef.current)
+                }
                 aria-label="Jump to next unlabeled trace"
                 title="Jump to next unlabeled [N]"
                 className="flex items-center justify-center gap-1 px-3 py-2 text-sm font-medium rounded border border-blue-300 text-blue-700 hover:bg-blue-50 disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
@@ -953,6 +991,7 @@ export function TraceView({
           {topTags.length > 0 && (
             <span><kbd className="font-mono font-semibold text-gray-500">1-{Math.min(4, topTags.length)}</kbd> Tag</span>
           )}
+          <span><kbd className="font-mono font-semibold text-gray-500">?</kbd> Tips</span>
         </div>
       </nav>
     </div>
@@ -1230,12 +1269,6 @@ function HotkeyRow({
   );
 }
 
-type FilterShape =
-  | { kind: "all" }
-  | { kind: "verdict"; v: Verdict | "unlabeled" | "skipped" }
-  | { kind: "tag"; tag: string }
-  | { kind: "sample"; indices: Set<number> };
-
 // Compact filter dropdown. Supports the four filter modes used by
 // TraceView. Tag filter only appears when at least one tag exists.
 function FilterPicker({
@@ -1243,8 +1276,8 @@ function FilterPicker({
   onFilter,
   allTags,
 }: {
-  filter: FilterShape;
-  onFilter: (f: FilterShape) => void;
+  filter: Filter;
+  onFilter: (f: Filter) => void;
   allTags: string[];
 }) {
   // Encode the active filter as a single string so the <select> element
@@ -1267,6 +1300,8 @@ function FilterPicker({
         else if (v === "v:unlabeled") onFilter({ kind: "verdict", v: "unlabeled" });
         else if (v === "v:skipped") onFilter({ kind: "verdict", v: "skipped" });
         else if (v.startsWith("tag:")) onFilter({ kind: "tag", tag: v.slice(4) });
+        // "sample" is the active-sample status row and is rendered disabled
+        // below; it's never a selectable value, but we no-op defensively.
       }}
       className="w-full rounded border border-gray-300 px-2 py-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
     >
@@ -1276,7 +1311,9 @@ function FilterPicker({
       <option value="v:fail">Fail only</option>
       <option value="v:skipped">Skipped only</option>
       {filter.kind === "sample" && (
-        <option value="sample">Random sample ({filter.indices.size})</option>
+        <option value="sample" disabled>
+          Random sample ({filter.indices.size}) - active
+        </option>
       )}
       {allTags.length > 0 && (
         <optgroup label="With tag">
@@ -1305,8 +1342,8 @@ function FindPopover({
   sampleRandom,
   onClose,
 }: {
-  filter: FilterShape;
-  onFilter: (f: FilterShape) => void;
+  filter: Filter;
+  onFilter: (f: Filter) => void;
   allTags: string[];
   total: number;
   jumpTo: (n: number) => void;
@@ -1397,6 +1434,10 @@ function FindPopover({
         >
           Random sample
         </label>
+        <p className="text-[11px] text-gray-500 mb-1.5">
+          Pick a random subset to focus on - useful for spot-checking a large
+          file.
+        </p>
         <div className="flex gap-2">
           <input
             id="find-sample-size"
@@ -1424,6 +1465,9 @@ function FindPopover({
           </p>
         )}
       </form>
+      <p className="text-[11px] text-gray-400 text-right">
+        <kbd className="font-mono text-gray-400">Esc</kbd> to close
+      </p>
     </div>
   );
 }

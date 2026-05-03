@@ -45,8 +45,18 @@
 - Visual polish (Inter font, logo, favicon)
 - AGENT-SETUP.md for AI-assisted install
 
-### v2.1 scope
-- Tag hierarchy reconsidered
+### v2.1 scope (shipped, see PR #50 against issue #49)
+
+A post-launch review bundle. Full change list in [docs/ux-research-note.md](docs/ux-research-note.md) §8.
+
+- Right-panel role clarification (decision surface vs tools surface) - issue #49
+- Hotkey rebind validation (rejects digits 1-4, Enter, arrows, and key collisions)
+- Coaching arc dynamic hotkey interpolation; small-file conditional copy; tips-progress chip on traces 6-15
+- Modal a11y (focus trap + Esc handling on SettingsModal and TagManagementPanel)
+- Native browser dialog replacement (styled ConfirmDialog / PromptDialog primitives)
+- State freshness for rapid keyboard labeling (useStateRef, max-wait flush, visibilitychange + beforeunload)
+- ToolCallRenderer chat bubble cap removed (max-h on bubbles only, JSON pre still capped)
+- Tag hierarchy reconsidered (no implementation; flat tags retained for now)
 
 ### v3 scope (deferred, do not re-litigate for v2.x)
 - Power-user analysis: similarity highlighting + side-effect verification (#37)

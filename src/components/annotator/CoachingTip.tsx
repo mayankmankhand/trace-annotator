@@ -197,7 +197,7 @@ export function CoachingTip({
           type="button"
           onClick={onSessionDismiss}
           aria-label="Dismiss coaching tips for this session"
-          className="flex-shrink-0 text-blue-400 hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded text-lg leading-none mt-0.5"
+          className="flex-shrink-0 inline-flex items-center justify-center w-7 h-7 -mr-1 -mt-1 rounded text-blue-400 hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 text-lg leading-none"
         >
           &times;
         </button>
@@ -240,7 +240,7 @@ export function MilestoneTip({
           type="button"
           onClick={onDismiss}
           aria-label="Dismiss milestone tip"
-          className="flex-shrink-0 text-blue-400 hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded text-lg leading-none mt-0.5"
+          className="flex-shrink-0 inline-flex items-center justify-center w-7 h-7 -mr-1 -mt-1 rounded text-blue-400 hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 text-lg leading-none"
         >
           &times;
         </button>
@@ -249,21 +249,26 @@ export function MilestoneTip({
   );
 }
 
-// Small "X tips done - keep going" footer chip rendered between Card 5
-// (last initial tip) and the trace-25 milestone. Without it, the coaching
-// goes silent for ~20 traces, which works against the "tool teaches as you
-// label" wedge. Visible on traces 6-15 (1-indexed), session-dismissible,
-// and only shown when the file is large enough that the user has actually
-// finished all 5 cards (TIPS_COUNT) before reaching this range.
+// Small presence indicator rendered between Card 5 (last initial tip) and
+// the trace-25 milestone. Without it, coaching goes silent for ~20 traces,
+// which works against the "tool teaches as you label" wedge. Visible on
+// traces 6-15 (1-indexed), session-dismissible. Self-gates on file size and
+// trace position; the parent must also gate on coachingActive (passed in)
+// so a permanent dismiss hides the chip too. Copy is intentionally
+// position-not-completion ("Keep going") because the user may have
+// session-dismissed an early card and "5 tips done" would be inaccurate.
 export function TipsProgressChip({
   traceIndex,
   total,
+  coachingActive,
   onDismiss,
 }: {
   traceIndex: number;
   total: number;
+  coachingActive: boolean;
   onDismiss: () => void;
 }) {
+  if (!coachingActive) return null;
   if (traceIndex < TIPS_COUNT) return null;
   if (traceIndex >= 15) return null;
   if (total < TIPS_COUNT) return null;
@@ -272,13 +277,13 @@ export function TipsProgressChip({
       role="status"
       className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 border border-blue-200 px-2 py-0.5 text-xs text-blue-700"
     >
-      <span className="font-medium">{TIPS_COUNT} tips done</span>
+      <span className="font-medium">Coaching</span>
       <span className="text-blue-500">- keep going</span>
       <button
         type="button"
         onClick={onDismiss}
-        aria-label="Dismiss tips progress chip"
-        className="text-blue-400 hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded"
+        aria-label="Dismiss coaching progress chip"
+        className="inline-flex items-center justify-center w-5 h-5 rounded text-blue-400 hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
       >
         &times;
       </button>

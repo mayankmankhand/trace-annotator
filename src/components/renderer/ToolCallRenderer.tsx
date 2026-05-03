@@ -159,7 +159,7 @@ export function ToolCallRenderer({ messages }: Props) {
         return (
           <div key={i} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
             <div
-              className={`max-w-[85%] rounded-lg px-4 py-3 text-sm whitespace-pre-wrap break-words ${
+              className={`max-w-[85%] max-h-[80vh] overflow-auto rounded-lg px-4 py-3 text-sm whitespace-pre-wrap break-words ${
                 isUser
                   ? "bg-blue-600 text-white"
                   : "bg-gray-100 text-gray-900 border border-gray-200"

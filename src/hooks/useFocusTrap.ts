@@ -3,21 +3,21 @@
 import { useEffect, useRef, type RefObject } from "react";
 
 // Traps Tab/Shift+Tab focus inside the ref'd container while `active` is true.
-// Auto-focuses the first focusable element on activation and restores focus to
-// the previously active element when deactivated. Used by modal overlays so
-// keyboard-only users cannot tab into the obscured background.
+// Auto-focuses the first focusable element on activation (or `initialFocus` if
+// supplied) and restores focus to the previously active element when
+// deactivated. Listener lives on `document` so focus that escapes the trap
+// (DevTools, third-party widgets) can be snapped back in.
 export function useFocusTrap<T extends HTMLElement>(
   active: boolean,
+  initialFocus?: RefObject<HTMLElement | null>,
 ): RefObject<T | null> {
   const containerRef = useRef<T | null>(null);
   const triggerRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (!active) return;
-    const container: T | null = containerRef.current;
+    const container = containerRef.current;
     if (!container) return;
-    // Re-bind under a non-null name so the inner `focusables()` closure
-    // doesn't lose narrowing across function boundaries.
     const node: T = container;
 
     triggerRef.current = (document.activeElement as HTMLElement) ?? null;
@@ -27,7 +27,11 @@ export function useFocusTrap<T extends HTMLElement>(
     const focusables = () =>
       Array.from(node.querySelectorAll<HTMLElement>(focusableSelector));
 
-    focusables()[0]?.focus();
+    // Caller-supplied override wins; otherwise the first focusable. Used by
+    // destructive ConfirmDialog to land focus on Cancel rather than the
+    // destructive primary.
+    const preferred = initialFocus?.current ?? null;
+    (preferred ?? focusables()[0])?.focus();
 
     function onKeyDown(e: KeyboardEvent) {
       if (e.key !== "Tab") return;
@@ -37,22 +41,38 @@ export function useFocusTrap<T extends HTMLElement>(
       const last = list[list.length - 1];
       const current = document.activeElement as HTMLElement | null;
       const inside = current ? node.contains(current) : false;
-      if (e.shiftKey && (!inside || current === first)) {
+      if (!inside) {
+        // Focus escaped (e.g., DevTools, third-party widget). Snap it back
+        // in - shift-tab lands on the last focusable, plain tab on the first.
+        e.preventDefault();
+        (e.shiftKey ? last : first).focus();
+        return;
+      }
+      if (e.shiftKey && current === first) {
         e.preventDefault();
         last.focus();
-      } else if (!e.shiftKey && (!inside || current === last)) {
+      } else if (!e.shiftKey && current === last) {
         e.preventDefault();
         first.focus();
       }
     }
 
-    node.addEventListener("keydown", onKeyDown);
+    document.addEventListener("keydown", onKeyDown);
     return () => {
-      node.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("keydown", onKeyDown);
       const trigger = triggerRef.current;
-      if (trigger && typeof trigger.focus === "function") trigger.focus();
+      // Trigger may have been removed from the DOM during the dialog's
+      // lifetime (e.g., conditional rendering elsewhere). Guard so we
+      // don't focus an orphan; focus drops to <body> as a last resort.
+      if (
+        trigger &&
+        typeof trigger.focus === "function" &&
+        document.contains(trigger)
+      ) {
+        trigger.focus();
+      }
     };
-  }, [active]);
+  }, [active, initialFocus]);
 
   return containerRef;
 }

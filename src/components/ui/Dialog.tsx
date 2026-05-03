@@ -1,23 +1,34 @@
 "use client";
 
-import { useEffect, useId, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject,
+} from "react";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 
 // Shared modal shell: dimmed overlay, rounded white card, focus trap, Esc to
 // close. Mirrors SettingsModal / TagManagementPanel visual tokens so dialogs
-// feel like the same family.
+// feel like the same family. `initialFocusRef` lets callers override which
+// element receives focus on open (e.g., destructive ConfirmDialog focuses
+// Cancel instead of the destructive primary).
 function ModalShell({
   open,
   onClose,
   ariaLabel,
+  initialFocusRef,
   children,
 }: {
   open: boolean;
   onClose: () => void;
   ariaLabel: string;
+  initialFocusRef?: RefObject<HTMLElement | null>;
   children: ReactNode;
 }) {
-  const containerRef = useFocusTrap<HTMLDivElement>(open);
+  const containerRef = useFocusTrap<HTMLDivElement>(open, initialFocusRef);
 
   useEffect(() => {
     if (!open) return;
@@ -50,7 +61,9 @@ function ModalShell({
 
 // Confirm an action that may be destructive (red primary) or routine (blue).
 // Body accepts arbitrary nodes so callers can spell out impact (e.g. "will
-// remove `wrong-date` from 14 traces").
+// remove `wrong-date` from 14 traces"). Destructive dialogs auto-focus
+// Cancel rather than the destructive primary so a stray Enter doesn't
+// commit a delete.
 export function ConfirmDialog({
   open,
   title,
@@ -70,8 +83,14 @@ export function ConfirmDialog({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
+  const cancelRef = useRef<HTMLButtonElement>(null);
   return (
-    <ModalShell open={open} onClose={onCancel} ariaLabel={title}>
+    <ModalShell
+      open={open}
+      onClose={onCancel}
+      ariaLabel={title}
+      initialFocusRef={destructive ? cancelRef : undefined}
+    >
       <div className="px-5 py-4 border-b flex items-center justify-between">
         <h2 className="text-base font-semibold text-gray-900">{title}</h2>
         <button
@@ -86,6 +105,7 @@ export function ConfirmDialog({
       <div className="px-5 py-4 text-sm text-gray-700">{body}</div>
       <div className="px-5 py-3 border-t flex justify-end gap-2">
         <button
+          ref={cancelRef}
           type="button"
           onClick={onCancel}
           className="text-xs px-3 py-1 rounded border border-gray-300 text-gray-700 hover:bg-gray-50"
