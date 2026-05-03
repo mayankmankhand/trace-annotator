@@ -2,7 +2,7 @@
 
 import type { Message } from "@/lib/trace/types";
 
-type Props = { messages: Message[] };
+type Props = { messages: Message[]; collapseSystem?: boolean };
 
 type RoleStyle = { wrap: string; bubble: string; label: string };
 
@@ -31,12 +31,29 @@ const ROLE_STYLES: Record<string, RoleStyle> = {
 
 const FALLBACK_STYLE: RoleStyle = ROLE_STYLES.assistant;
 
-export function ChatRenderer({ messages }: Props) {
+export function ChatRenderer({ messages, collapseSystem = false }: Props) {
   return (
     <div className="space-y-3">
       {messages.map((m, i) => {
-        const s = ROLE_STYLES[m.role] ?? FALLBACK_STYLE;
         const isSystem = m.role === "system";
+
+        if (isSystem && collapseSystem) {
+          return (
+            <details
+              key={i}
+              className="rounded-lg border border-amber-200 bg-amber-50"
+            >
+              <summary className="cursor-pointer select-none px-4 py-2 text-sm font-medium text-amber-700 hover:bg-amber-100">
+                System prompt (click to expand)
+              </summary>
+              <div className="px-4 py-3 text-sm text-gray-700 whitespace-pre-wrap italic max-h-72 overflow-auto">
+                {m.content}
+              </div>
+            </details>
+          );
+        }
+
+        const s = ROLE_STYLES[m.role] ?? FALLBACK_STYLE;
         return (
           <div key={i} className={`flex ${s.wrap}`}>
             <div
