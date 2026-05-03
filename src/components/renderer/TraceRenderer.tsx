@@ -11,9 +11,10 @@ import { GenericRenderer } from "./GenericRenderer";
 type Props = {
   trace: Trace;
   showJsonDefault?: boolean;
+  collapseSystem?: boolean;
 };
 
-export function TraceRenderer({ trace, showJsonDefault = false }: Props) {
+export function TraceRenderer({ trace, showJsonDefault = false, collapseSystem = false }: Props) {
   const [showJson, setShowJson] = useState(showJsonDefault);
   const rendererType = detectRenderer(trace);
   const allMessages = [...trace.input, ...trace.output];
@@ -21,7 +22,7 @@ export function TraceRenderer({ trace, showJsonDefault = false }: Props) {
   return (
     <div className="space-y-4">
       <div>
-        {rendererType === "chat" && <ChatRenderer messages={allMessages} />}
+        {rendererType === "chat" && <ChatRenderer messages={allMessages} collapseSystem={collapseSystem} />}
         {rendererType === "email" && (
           <EmailRenderer
             promptMessages={trace.input}

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import type { WizardConfig } from "@/lib/config/types";
 import {
   checkFileSize,
   detectFormat,
@@ -22,7 +23,7 @@ import { DropZone } from "./DropZone";
 import { MappingStep } from "./MappingStep";
 import { PreviewStep } from "./PreviewStep";
 
-type Step = "drop" | "mapping" | "preview" | "done";
+type Step = "drop" | "mapping" | "preview";
 
 type LoadedSource = {
   filename: string;
@@ -58,13 +59,23 @@ function ensureObjectRows(
   return { ok: true, rows };
 }
 
-export function Wizard() {
+export function Wizard({ onDone }: { onDone: (traces: Trace[], filename: string) => void }) {
   const [step, setStep] = useState<Step>("drop");
   const [error, setError] = useState<string | null>(null);
   const [source, setSource] = useState<LoadedSource | null>(null);
   const [mapping, setMapping] = useState<MappingConfig | null>(null);
+  const [savedConfig, setSavedConfig] = useState<WizardConfig | null>(null);
   const [traces, setTraces] = useState<Trace[] | null>(null);
   const [parsing, setParsing] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/config")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { ok: boolean; config?: WizardConfig } | null) => {
+        if (data?.ok && data.config) setSavedConfig(data.config);
+      })
+      .catch(() => {});
+  }, []);
 
   function reset() {
     setError(null);
@@ -141,7 +152,7 @@ export function Wizard() {
         setTraces(applied.value);
         setStep("preview");
       } else {
-        setMapping(null);
+        setMapping(savedConfig ?? null);
         setStep("mapping");
       }
     } finally {
@@ -161,6 +172,17 @@ export function Wizard() {
     setMapping(config);
     setTraces(applied.value);
     setStep("preview");
+  }
+
+  function handleConfirmDone() {
+    if (!traces || !mapping || !source) return;
+    const config: WizardConfig = { ...mapping, savedAt: new Date().toISOString() };
+    fetch("/api/config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ config }),
+    }).catch(() => {});
+    onDone(traces, source.filename);
   }
 
   return (
@@ -226,36 +248,8 @@ export function Wizard() {
               setError(null);
               setStep("mapping");
             }}
-            onConfirm={() => setStep("done")}
+            onConfirm={handleConfirmDone}
           />
-        )}
-
-        {step === "done" && traces && (
-          <div className="space-y-3 text-center py-4">
-            <p className="text-base font-medium text-gray-900">
-              Loaded {traces.length} {traces.length === 1 ? "trace" : "traces"}
-              {source ? ` from ${source.filename}` : ""}.
-            </p>
-            <p className="text-sm text-gray-600">
-              The labeling view is the next milestone. Watch the{" "}
-              <a
-                href="https://github.com/mayankmankhand/Observability/issues"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-600 underline"
-              >
-                open issues
-              </a>{" "}
-              for progress.
-            </p>
-            <button
-              type="button"
-              onClick={reset}
-              className="text-sm text-blue-600 hover:underline"
-            >
-              Load another file
-            </button>
-          </div>
         )}
       </div>
     </div>
@@ -263,7 +257,7 @@ export function Wizard() {
 }
 
 function StepIndicator({ current }: { current: Step }) {
-  const currentIdx = current === "done" ? STEPS.length : STEPS.findIndex((s) => s.id === current);
+  const currentIdx = STEPS.findIndex((s) => s.id === current);
   return (
     <ol aria-label="Wizard progress" className="flex gap-3 text-xs text-gray-500">
       {STEPS.map((s, i) => {
