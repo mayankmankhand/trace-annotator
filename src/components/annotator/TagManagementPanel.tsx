@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Annotations } from "./TraceView";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
+import { ConfirmDialog } from "@/components/ui/Dialog";
 
 // Rename, merge, and remove tags across the entire labeled set. Operates on
 // a snapshot of all annotations; the parent applies the transform globally.
@@ -35,6 +37,32 @@ export function TagManagementPanel({
   const tags = Array.from(counts.keys()).sort();
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
+  // Tag pending deletion. The styled ConfirmDialog replaces the previous
+  // browser confirm() so the impact ("on N traces") is visible inline and
+  // the dialog inherits the same focus-trap as the rest of the modal.
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null);
+  // Tag pending a merge-rename. Triggered when the user renames into an
+  // existing tag - instead of silently merging (the old behavior), we ask
+  // for explicit confirmation showing how many traces are affected.
+  const [pendingMerge, setPendingMerge] = useState<{
+    from: string;
+    to: string;
+  } | null>(null);
+  // Trap focus inside the dialog while it's open. Restores focus to the
+  // trigger element on close. Without this, Tab would carry the user into
+  // the obscured background.
+  const dialogRef = useFocusTrap<HTMLDivElement>(open);
+
+  // Close on Escape - matches the visual modal pattern used by SettingsModal
+  // and the ConfirmDialog primitive.
+  useEffect(() => {
+    if (!open) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
 
   if (!open) return null;
 
@@ -46,8 +74,15 @@ export function TagManagementPanel({
     if (!editing) return;
     const next = draft.trim();
     if (next && next !== editing) {
-      // Merge happens implicitly: if `next` already exists, both old and
-      // new collapse into the same canonical tag.
+      // Renaming into an existing tag is technically a merge. Surface that
+      // explicitly so a typo-rename ("wrong-dates" colliding with an
+      // existing "wrong-dates") doesn't silently collapse two distinct
+      // tags. The user-side label for the operation is still "rename" -
+      // the dialog explains the merge consequence.
+      if (counts.has(next)) {
+        setPendingMerge({ from: editing, to: next });
+        return;
+      }
       onRename(editing, next);
     }
     setEditing(null);
@@ -67,6 +102,7 @@ export function TagManagementPanel({
       onClick={onClose}
     >
       <div
+        ref={dialogRef}
         className="w-full max-w-lg rounded-lg bg-white shadow-xl border max-h-[80vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
@@ -150,15 +186,7 @@ export function TagManagementPanel({
                         </button>
                         <button
                           type="button"
-                          onClick={() => {
-                            if (
-                              confirm(
-                                `Remove "${tag}" from ${count} ${count === 1 ? "trace" : "traces"}?`,
-                              )
-                            ) {
-                              onDelete(tag);
-                            }
-                          }}
+                          onClick={() => setPendingDelete(tag)}
                           className="text-xs text-red-600 hover:text-red-800 hover:underline"
                         >
                           Delete
@@ -172,6 +200,70 @@ export function TagManagementPanel({
           )}
         </div>
       </div>
+
+      <ConfirmDialog
+        open={pendingMerge !== null}
+        title="Merge tags?"
+        body={
+          pendingMerge &&
+          (() => {
+            const fromCount = counts.get(pendingMerge.from) ?? 0;
+            const toCount = counts.get(pendingMerge.to) ?? 0;
+            return (
+              <p>
+                <span className="inline-flex items-center rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-800 mx-0.5">
+                  {pendingMerge.to}
+                </span>
+                already exists on {toCount}{" "}
+                {toCount === 1 ? "trace" : "traces"}. This rename will merge{" "}
+                <span className="inline-flex items-center rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-800 mx-0.5">
+                  {pendingMerge.from}
+                </span>
+                ({fromCount} {fromCount === 1 ? "trace" : "traces"}) into it.
+                The original tag will be removed.
+              </p>
+            );
+          })()
+        }
+        confirmLabel="Merge"
+        onConfirm={() => {
+          if (pendingMerge) {
+            onRename(pendingMerge.from, pendingMerge.to);
+            setEditing(null);
+            setDraft("");
+          }
+          setPendingMerge(null);
+        }}
+        onCancel={() => setPendingMerge(null)}
+      />
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Delete tag?"
+        body={
+          pendingDelete &&
+          (() => {
+            const c = counts.get(pendingDelete) ?? 0;
+            return (
+              <p>
+                This will remove{" "}
+                <span className="inline-flex items-center rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-800 mx-0.5">
+                  {pendingDelete}
+                </span>{" "}
+                from {c} {c === 1 ? "trace" : "traces"}. The labels themselves
+                stay.
+              </p>
+            );
+          })()
+        }
+        confirmLabel="Delete"
+        destructive
+        onConfirm={() => {
+          if (pendingDelete) onDelete(pendingDelete);
+          setPendingDelete(null);
+        }}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   );
 }

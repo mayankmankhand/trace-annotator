@@ -2,7 +2,7 @@
 
 **Issue:** #10  
 **Date:** 2026-05-03  
-**Status:** Phase A research locked, Phase B applied. Section 4.1 amended after user review.
+**Status:** Phase A research locked, Phase B applied. Section 4.1 amended after user review. v2.1 added an amendment to §4.1 (right-panel role clarification) plus a full v2.1 changelog in §8 (see issue #49).
 
 ---
 
@@ -93,6 +93,12 @@ These are recommendations for the user to approve before Phase B applies them.
 
 **No list sidebar:** A small persistent counter in the top bar (e.g., "7 of 120 labeled") preserves progress visibility without showing the full list of remaining traces. Avoids "list anxiety" while preserving status visibility.
 
+**v2.1 amendment - role clarification (issue #49):** The right panel is the *per-trace decision surface*. It carries only the actions a reviewer takes once per trace: Pass, Fail, Skip, Previous, Next, Label-next. Skip joined the panel in v2.0 as verdict-adjacent and is intentionally retained.
+
+Session-level tools (Find / filter / jump / sample, Manage tags, Undo, Settings, Export, ? tips) move to the *top-bar tools row*. The reasoning: when labeling, the eye should scan a small same-shape set of decision buttons, not a 9-affordance column mixing per-trace decisions with administrative controls. Any new affordance proposed for the right panel must answer "is this a per-trace decision?" before it lands. If not, it belongs in the top bar.
+
+This amendment narrows the v1 spec rather than redefining it: the original §4.1 intent was "label actions next to the trace at eye-level". Tools that grew into the panel post-v1 (Find, Manage tags, Undo) are routed elsewhere instead of trimmed.
+
 ---
 
 ### 4.2 Density: Medium - one trace fills the viewport
@@ -170,3 +176,28 @@ These map exactly to the Tailwind tokens already in use in the wizard.
 - Color-accessibility cue and multi-turn pagination intentionally deferred to v2
 
 Phase B should NOT start until the user approves this note.
+
+---
+
+## 8. v2.1 Amendments (issue #49)
+
+### 8.1 Design decisions (rationale belongs here)
+
+- Section 4.1 amended to clarify role separation: the right panel is the per-trace decision surface (Pass / Fail / Skip / Previous / Next / Label-next); session-level tools (Find, Tags, Undo, Settings, ? tips, Export) live in the top-bar tools row. Future panel additions must answer "is this a per-trace decision?" before landing.
+- Find collapses three previous panel sections (filter, jump-to-#, random sample) into one popover anchored to the top-bar Find trigger. One click target, one dismiss path.
+- Tag delete confirmation now spells out the impact ("will remove `wrong-date` from N traces. The labels themselves stay.") via a styled `ConfirmDialog` that mirrors the rest of the modal family. Destructive dialogs default focus to Cancel rather than the destructive primary so a stray Enter doesn't commit a delete.
+- Tag rename now surfaces a merge confirmation when the new name matches an existing tag - the prior silent-merge behavior was risky for beginners who didn't know rename-into-existing was how merges worked.
+- Coaching Card 1 interpolates the active `hotkeys.pass`, `hotkeys.fail`, and `hotkeys.next` so the teaching copy stays in sync with rebinds. Card 5 drops the trace-25 promise on files smaller than 25 traces (a promise we wouldn't keep).
+- Coaching surface gains a small "Coaching - keep going" presence chip on traces 6-15 to maintain the teaching wedge across the silent gap between Card 5 and the trace-25 milestone. Lives in the top-bar tools row near `? tips` so it visually ties to the coaching surface, not to per-trace metadata.
+- The `?` key is bound to toggle coaching tips so the `? tips` button label reads as a real hotkey hint rather than decoration.
+
+### 8.2 Implementation fixes (touched the design surface but not decisions)
+
+- Settings hotkey rebinding rejects digits 1-4, Enter, and arrow keys (reserved), and rejects collisions against other actions; an inline error explains why.
+- Modal a11y: SettingsModal, TagManagementPanel, and the new Dialog primitives trap Tab/Shift+Tab focus, autoFocus the appropriate element on open, and restore focus to the trigger on close. Listener lives on `document` so escaped focus snaps back in.
+- ToolCallRenderer no longer caps message bubble height for typical chat turns; individual bubbles cap at `max-h-[80vh] overflow-auto` so a pathological 50KB message doesn't push the navigation panel off-screen. JSON args/results `<pre>` blocks keep their `max-h-48` cap (tool outputs can be huge).
+- Autosave tracks time since the *first* pending change in the current streak (not time since last save). After 3 seconds of continuous edits, the next change writes immediately. Single edits after idle periods still go through the 500ms debounce.
+- Tab close / page hide flush listens on both `beforeunload` (desktop) and `visibilitychange -> hidden` (mobile, since iOS Safari often skips beforeunload). Best-effort - IndexedDB writes are async and the browser doesn't wait on promises.
+- Random sample input includes a one-line helper for newcomers ("Pick a random subset to focus on - useful for spot-checking a large file"). Validation surfaces "Only X traces available" when the requested size exceeds `total`.
+- FindPopover footer adds an "Esc to close" hint, matching the explanatory tone of SettingsModal.
+- Progressbar `aria-valuenow` reports `labeledCount` (matching the visible fill), with `aria-valuetext` providing a screen-reader-friendly summary; trace position is already announced by the live region above.

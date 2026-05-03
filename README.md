@@ -48,8 +48,8 @@ BYO-data tool. Real trace data is never committed and is gitignored by default. 
 
 ## Roadmap
 
-- **v2.1:** batch labeling (#36) - reconsidered after users have internalized open coding via v2.0.
-- **v3:** power-user analysis (similarity highlighting, side-effect verification), adapter pattern for power users, multi-format rendering (image/audio/video), external platform integrations, SQLite storage backend, alternate distribution shapes (CLI, notebook widget), LLM judge training pipeline. See [open v3 issues](../../issues?q=is%3Aopen+label%3Av3).
+- **v2.1:** post-launch review bundle (#49) - right-panel role clarification, modal a11y, state-freshness fixes for rapid keyboard labeling, native dialog replacement, coaching-arc polish. Full change list in [docs/ux-research-note.md](./docs/ux-research-note.md) §8.
+- **v3:** power-user analysis (similarity highlighting, side-effect verification), adapter pattern for power users, batch labeling (#36), multi-format rendering (image/audio/video), external platform integrations, SQLite storage backend, alternate distribution shapes (CLI, notebook widget), LLM judge training pipeline. See [open v3 issues](../../issues?q=is%3Aopen+label%3Av3).
 
 ## License
 
