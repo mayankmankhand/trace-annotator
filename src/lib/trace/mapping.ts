@@ -88,19 +88,51 @@ export function autoRecognize(
     }
   }
 
-  // Fall back to flat input/output recognition.
+  // Try flat input/output field-name match next (two-field mode). Files
+  // with explicit top-level `input` and `output` message arrays (or any
+  // pair from KNOWN_INPUT_FIELDS / KNOWN_OUTPUT_FIELDS) belong here, not
+  // in the deeper-nested check below. Doing this before the nested check
+  // preserves v1/v2 behavior for those shapes.
   const inputField = findByPriority(lower, fields, KNOWN_INPUT_FIELDS);
   const outputField = findByPriority(lower, fields, KNOWN_OUTPUT_FIELDS);
-  if (!inputField || !outputField) return null;
-  return {
-    config: {
-      idField,
-      inputField,
-      outputField,
-      metadataPassthrough: true,
-    },
-    usedNestedMessages: false,
-  };
+  if (inputField && outputField) {
+    return {
+      config: {
+        idField,
+        inputField,
+        outputField,
+        metadataPassthrough: true,
+      },
+      usedNestedMessages: false,
+    };
+  }
+
+  // Try truly-nested messages[] paths (path contains a dot). Catches the
+  // OpenAI-shaped request/response files where top-level fields are
+  // objects wrapping a `messages` array. We only consider dotted paths so
+  // we don't shadow the flat-field detection above. Prefer the path whose
+  // array contains an assistant turn (that's the full conversation); fall
+  // back to the first detected path otherwise.
+  if (sampleRow) {
+    const nested = findMessageArrayPaths(sampleRow).filter((c) =>
+      c.path.includes("."),
+    );
+    const withAssistant = nested.find((c) => c.hasAssistant);
+    const picked = withAssistant ?? nested[0];
+    if (picked) {
+      return {
+        config: {
+          idField,
+          inputField: picked.path,
+          outputField: picked.path,
+          metadataPassthrough: true,
+        },
+        usedNestedMessages: true,
+      };
+    }
+  }
+
+  return null;
 }
 
 function looksLikeMessageList(value: unknown): boolean {
@@ -115,6 +147,133 @@ function looksLikeMessageList(value: unknown): boolean {
         "content" in item,
     )
   );
+}
+
+// Walk a row to find every dotted path whose value looks like a list of
+// {role, content} message objects. Bounded depth so we don't recurse into
+// arbitrarily deep structures. Used to:
+//   1. Power smarter auto-recognition when top-level fields are wrappers
+//      (e.g. OpenAI-shaped request/response objects) rather than message
+//      arrays themselves.
+//   2. Show detected paths to the user in the wizard's mapping step so
+//      they can click to fill instead of guessing the right path.
+export function findMessageArrayPaths(
+  row: Record<string, unknown>,
+  maxDepth = 4,
+): Array<{ path: string; size: number; hasAssistant: boolean; hasUser: boolean }> {
+  const out: Array<{
+    path: string;
+    size: number;
+    hasAssistant: boolean;
+    hasUser: boolean;
+  }> = [];
+  function walk(value: unknown, prefix: string, depth: number) {
+    if (depth > maxDepth) return;
+    if (Array.isArray(value)) {
+      if (looksLikeMessageList(value)) {
+        const arr = value as Array<{ role: string }>;
+        out.push({
+          path: prefix,
+          size: arr.length,
+          hasAssistant: arr.some((m) => m.role === "assistant"),
+          hasUser: arr.some((m) => m.role === "user"),
+        });
+      }
+      // Don't recurse into array items; message arrays are leaves for
+      // our purposes, and walking deep into other arrays risks noisy
+      // false matches.
+      return;
+    }
+    if (value === null || typeof value !== "object") return;
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      if (UNSAFE_KEYS.has(k)) continue;
+      walk(v, prefix ? `${prefix}.${k}` : k, depth + 1);
+    }
+  }
+  walk(row, "", 0);
+  return out;
+}
+
+// Read a field from a row by name OR by dot-notation path. Plain field names
+// (no dots) take the fast path of direct property access so existing v1/v2
+// mapping behavior is unchanged. Dotted names walk the object one segment at
+// a time. Used by the JSON DSL adapter (v3, #16) so power users can target
+// nested fields without flattening their file first.
+//
+// Security: every segment is checked against UNSAFE_KEYS so a pasted adapter
+// like {"inputField": "messages.constructor.prototype"} can't reach into
+// prototypes and pollute global state. Returns undefined (matching the
+// "missing field" path) when an unsafe segment is encountered.
+//
+// Limitation: if a row genuinely has a top-level key with a "." in its name,
+// the dotted lookup will miss it. That's exotic; treat it as a known edge.
+export function getFieldByPath(
+  row: Record<string, unknown>,
+  path: string,
+): unknown {
+  if (!path.includes(".")) {
+    if (UNSAFE_KEYS.has(path)) return undefined;
+    return row[path];
+  }
+  const parts = path.split(".");
+  let cur: unknown = row;
+  for (const p of parts) {
+    if (UNSAFE_KEYS.has(p)) return undefined;
+    if (cur === null || typeof cur !== "object" || Array.isArray(cur)) {
+      return undefined;
+    }
+    cur = (cur as Record<string, unknown>)[p];
+  }
+  return cur;
+}
+
+// Reject any field path whose segments include __proto__, constructor, or
+// prototype. Returns null if safe, or an error message if unsafe. Exported
+// so the adapter DSL parser can validate at save time and the user gets
+// feedback before the path silently misses at load time.
+export function validateFieldPath(path: string): string | null {
+  const parts = path.split(".");
+  for (const p of parts) {
+    if (UNSAFE_KEYS.has(p)) {
+      return `Field path "${path}" contains unsafe segment "${p}". Reserved JavaScript prototype keys (${Array.from(UNSAFE_KEYS).join(", ")}) cannot be used.`;
+    }
+  }
+  return null;
+}
+
+// Human-readable description of an arbitrary value, used to make the
+// "wrong shape" error in applyMapping diagnostic. The user otherwise sees
+// only "got an unexpected value type" with no hint about WHAT type was
+// actually found, which makes it impossible to know whether to (a) pick
+// a different field, (b) use dot-notation to dig into a nested object,
+// or (c) convert the file before loading.
+function describeValue(value: unknown): string {
+  if (value === undefined) return "missing";
+  if (value === null) return "null";
+  if (Array.isArray(value)) {
+    if (value.length === 0) return "an empty array";
+    const sample = value[0];
+    if (sample === null || sample === undefined) {
+      return `an array of ${value.length} (first item is ${sample === null ? "null" : "undefined"})`;
+    }
+    if (typeof sample === "object") {
+      const keys = Object.keys(sample as Record<string, unknown>).slice(0, 5);
+      return `an array of ${value.length} object${value.length === 1 ? "" : "s"} (first has keys: ${keys.join(", ") || "(none)"})`;
+    }
+    return `an array of ${value.length} ${typeof sample}${value.length === 1 ? "" : "s"}`;
+  }
+  if (typeof value === "object") {
+    const keys = Object.keys(value as Record<string, unknown>);
+    const shown = keys.slice(0, 6).join(", ");
+    const more = keys.length > 6 ? `, and ${keys.length - 6} more` : "";
+    return `an object with keys: ${shown || "(none)"}${more}`;
+  }
+  if (typeof value === "string") {
+    if (value.length === 0) return "an empty string";
+    const preview = value.length > 40 ? `${value.slice(0, 40)}...` : value;
+    return `a ${value.length}-char string ("${preview}")`;
+  }
+  return `a ${typeof value} (${JSON.stringify(value).slice(0, 40)})`;
 }
 
 function stringifyId(value: unknown): string {
@@ -210,7 +369,7 @@ export function applyMapping(
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     if (fromSingleField) {
-      const value = row[config.inputField];
+      const value = getFieldByPath(row, config.inputField);
       if (value === undefined) {
         return {
           ok: false,
@@ -222,13 +381,13 @@ export function applyMapping(
         return {
           ok: false,
           error:
-            `Row ${i + 1}: "${config.inputField}" must be a message array (objects with "role" and "content"). ` +
-            `Got an unexpected value type.`,
+            `Row ${i + 1}: "${config.inputField}" must be a message array (objects with "role" and "content" fields), but got ${describeValue(value)}. ` +
+            `If your messages are nested inside this field, try a dotted path like "${config.inputField}.messages" in the manual mapping step or a custom adapter.`,
         };
       }
       const { input, output } = splitMessages(all);
       const id = config.idField
-        ? stringifyId(row[config.idField]) || String(i + 1)
+        ? stringifyId(getFieldByPath(row, config.idField)) || String(i + 1)
         : String(i + 1);
       const trace: Trace = { id, input, output };
       attachMetadata(trace, row, config);
@@ -236,8 +395,8 @@ export function applyMapping(
       continue;
     }
 
-    const inputValue = row[config.inputField];
-    const outputValue = row[config.outputField];
+    const inputValue = getFieldByPath(row, config.inputField);
+    const outputValue = getFieldByPath(row, config.outputField);
     if (inputValue === undefined && outputValue === undefined) {
       return {
         ok: false,
@@ -247,15 +406,28 @@ export function applyMapping(
     const inputMessages = toMessages(inputValue ?? "", "user", aliases);
     const outputMessages = toMessages(outputValue ?? "", "assistant", aliases);
     if (!inputMessages || !outputMessages) {
-      return {
-        ok: false,
-        error:
-          `Row ${i + 1}: "${config.inputField}" and "${config.outputField}" must be text or message arrays. ` +
-          `Got an unexpected value type. Pick a different field, or convert it before loading.`,
-      };
+      // Diagnostic error so the user sees the actual shape of the field
+      // they picked and has a concrete next step. The previous "got an
+      // unexpected value type" was too generic to act on.
+      const lines: string[] = [`Row ${i + 1}: cannot extract messages.`];
+      if (!inputMessages) {
+        lines.push(`  "${config.inputField}" is ${describeValue(inputValue)}.`);
+      }
+      if (!outputMessages) {
+        lines.push(`  "${config.outputField}" is ${describeValue(outputValue)}.`);
+      }
+      lines.push(
+        `Each field needs to be either plain text OR an array of objects with "role" and "content" (e.g. ` +
+          `[{"role":"user","content":"hi"},{"role":"assistant","content":"hello"}]).`,
+      );
+      lines.push(
+        `Common fix: if the messages are nested deeper (e.g. "${config.inputField}.messages" or "${config.inputField}.choices.0.message.content"), ` +
+          `dot-notation paths work in the manual mapping step and in custom adapters.`,
+      );
+      return { ok: false, error: lines.join("\n") };
     }
     const id = config.idField
-      ? stringifyId(row[config.idField]) || String(i + 1)
+      ? stringifyId(getFieldByPath(row, config.idField)) || String(i + 1)
       : String(i + 1);
     const trace: Trace = {
       id,

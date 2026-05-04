@@ -174,6 +174,14 @@ export async function loadSessionState(
 
 // Audit log entry. One row per label change. The labelBefore/labelAfter
 // pair lets the version-log UI show "you changed Pass to Fail at 14:32".
+//
+// batchId (v3, optional) groups entries written together by a batch
+// labeling action. Two consumers care about it:
+//   - The time estimator excludes batch entries from its median (one
+//     bulk-apply over 50 traces would otherwise crash the average to ~0s).
+//   - Batch undo finds every audit entry sharing a batchId and reverts the
+//     whole group in one step.
+// Single-trace label changes leave batchId undefined.
 export type AuditEntry = {
   fingerprint: string;
   trace_id: string;
@@ -182,6 +190,7 @@ export type AuditEntry = {
   before: LabelRow | null;
   // Snapshot after the change. null if this was a deletion.
   after: LabelRow | null;
+  batchId?: string;
 };
 
 export async function appendAuditEntry(entry: AuditEntry): Promise<void> {
@@ -189,6 +198,49 @@ export async function appendAuditEntry(entry: AuditEntry): Promise<void> {
   const tx = db.transaction(AUDIT_STORE, "readwrite");
   tx.objectStore(AUDIT_STORE).add(entry);
   await txAsPromise(tx);
+}
+
+// Batch counterpart to appendAuditEntry: writes many entries in a single IDB
+// transaction so a partial failure doesn't leave inconsistent state. Used by
+// v3 batch labeling (#36) where one user action updates N traces at once.
+export async function appendAuditEntriesBatch(
+  entries: AuditEntry[],
+): Promise<void> {
+  if (entries.length === 0) return;
+  const db = await openDb();
+  const tx = db.transaction(AUDIT_STORE, "readwrite");
+  const store = tx.objectStore(AUDIT_STORE);
+  for (const e of entries) store.add(e);
+  await txAsPromise(tx);
+}
+
+// Load the most recent audit entries for a file, newest first. The audit
+// store's primary key is auto-incrementing, so iterating the by-fingerprint
+// index in "prev" direction yields newest-first naturally. Used by the v3
+// time estimator (src/lib/time-estimate.ts) to compute a rolling median of
+// seconds-per-label over the user's recent activity.
+export async function loadRecentAuditEntries(
+  fingerprint: string,
+  limit: number,
+): Promise<AuditEntry[]> {
+  const db = await openDb();
+  const tx = db.transaction(AUDIT_STORE, "readonly");
+  const idx = tx.objectStore(AUDIT_STORE).index("by-fingerprint");
+  const out: AuditEntry[] = [];
+  await new Promise<void>((resolve, reject) => {
+    const cursorReq = idx.openCursor(IDBKeyRange.only(fingerprint), "prev");
+    cursorReq.onsuccess = () => {
+      const cursor = cursorReq.result;
+      if (cursor && out.length < limit) {
+        out.push(cursor.value as AuditEntry);
+        cursor.continue();
+      } else {
+        resolve();
+      }
+    };
+    cursorReq.onerror = () => reject(cursorReq.error);
+  });
+  return out;
 }
 
 export async function loadAuditForTrace(
@@ -324,6 +376,79 @@ export function saveHotkeys(keys: Hotkeys): void {
     localStorage.setItem(HOTKEYS_KEY, JSON.stringify(keys));
   } catch {
     // No-op.
+  }
+}
+
+// Custom adapter (v3, #16 JSON DSL). Stores the user's saved adapter JSON
+// so subsequent file loads can skip the wizard mapping step. The adapter is
+// the JSON-DSL form of MappingConfig and is parsed at load time via
+// parseAdapterDSL. Stored as the raw JSON string so the editor can show it
+// back to the user verbatim, including formatting.
+const ADAPTER_KEY = "ta:adapter:v1";
+
+export type AdapterRecord = {
+  json: string;
+  savedAt: string;
+};
+
+export function loadAdapter(): AdapterRecord | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(ADAPTER_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<AdapterRecord>;
+    if (typeof parsed.json !== "string" || typeof parsed.savedAt !== "string") {
+      return null;
+    }
+    return { json: parsed.json, savedAt: parsed.savedAt };
+  } catch {
+    return null;
+  }
+}
+
+export function saveAdapter(json: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    const record: AdapterRecord = { json, savedAt: new Date().toISOString() };
+    localStorage.setItem(ADAPTER_KEY, JSON.stringify(record));
+  } catch {
+    // No-op; adapter is a UX preference, not data.
+  }
+}
+
+export function clearAdapter(): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.removeItem(ADAPTER_KEY);
+  } catch {
+    // No-op.
+  }
+}
+
+// Mode toggle. v3 introduces an explicit "I'm experienced" mode that unlocks
+// power features (batch labeling, JSON DSL adapter, tool-call review,
+// similarity highlighting). Beginners stay on "novice" by default and see the
+// v1/v2 experience untouched. Stored in localStorage so the choice persists
+// across sessions.
+export type Mode = "novice" | "experienced";
+const MODE_KEY = "ta:mode:v1";
+
+export function loadMode(): Mode {
+  if (typeof window === "undefined") return "novice";
+  try {
+    const raw = localStorage.getItem(MODE_KEY);
+    return raw === "experienced" ? "experienced" : "novice";
+  } catch {
+    return "novice";
+  }
+}
+
+export function saveMode(mode: Mode): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(MODE_KEY, mode);
+  } catch {
+    // No-op; mode is a UX preference, not data.
   }
 }
 

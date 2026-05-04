@@ -22,12 +22,15 @@ import type {
   Trace,
 } from "@/lib/trace/types";
 import {
+  clearAdapter,
+  loadAdapter,
   loadTemplate,
   loadWizardConfig,
   saveTemplate,
   saveWizardConfig,
   type TemplateChoice,
 } from "@/lib/storage";
+import { parseAdapterDSL } from "@/lib/trace/adapter-dsl";
 import { DropZone } from "./DropZone";
 import { MappingStep } from "./MappingStep";
 import { PreviewStep } from "./PreviewStep";
@@ -46,6 +49,11 @@ type LoadedSource = {
   envelopeKey: EnvelopeKey | null;
   autoRecognized: boolean;
   usedNestedMessages: boolean;
+  // True when the rows were mapped via the user's saved JSON DSL adapter
+  // rather than auto-recognition or manual mapping. The PreviewStep shows
+  // a chip ("Loaded via custom adapter") so a user who forgot they have
+  // one saved sees why the wizard skipped the mapping step.
+  viaAdapter: boolean;
   sizeBytes: number;
 };
 
@@ -89,6 +97,14 @@ export function Wizard({
   const [step, setStep] = useState<Step>("drop");
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
+  // adapterIssue is for failures specifically caused by the user's saved
+  // custom adapter (DSL parse errors or shape mismatches). Surfaced with
+  // role="alert" and a Clear button rather than the polite amber banner so
+  // an experienced user who saw their no-wizard flow break has an
+  // immediate, in-place recovery path. Settings (where adapters are
+  // managed) is unreachable until they finish the wizard, so we cannot
+  // route them there from here.
+  const [adapterIssue, setAdapterIssue] = useState<string | null>(null);
   const [source, setSource] = useState<LoadedSource | null>(null);
   const [mapping, setMapping] = useState<MappingConfig | null>(null);
   const [savedConfig, setSavedConfig] = useState<WizardConfig | null>(null);
@@ -103,6 +119,7 @@ export function Wizard({
   function reset() {
     setError(null);
     setWarning(null);
+    setAdapterIssue(null);
     setSource(null);
     setMapping(null);
     setTraces(null);
@@ -113,6 +130,7 @@ export function Wizard({
   async function handleFile(file: File) {
     setError(null);
     setWarning(null);
+    setAdapterIssue(null);
     setParsing(file.name);
     try {
       const sizeCheck = checkFileSize(file.size);
@@ -165,6 +183,45 @@ export function Wizard({
         fields = collectFieldNames(rows);
       }
 
+      // Try the saved adapter first (v3, #16). If the user has saved a
+      // JSON DSL adapter in Settings (experienced mode), it bypasses the
+      // wizard mapping step. If the adapter fails to apply (file shape
+      // changed, JSON broken), fall through to the normal flow and surface
+      // an alert (with a Clear button) so the user knows the saved adapter
+      // didn't apply and has a one-click recovery path.
+      const adapter = loadAdapter();
+      if (adapter) {
+        const parsedAdapter = parseAdapterDSL(adapter.json);
+        if (parsedAdapter.ok) {
+          const applied = applyMapping(rows, parsedAdapter.config);
+          if (applied.ok) {
+            const loaded: LoadedSource = {
+              filename: file.name,
+              format,
+              rows,
+              fields,
+              envelopeKey,
+              autoRecognized: true,
+              usedNestedMessages: false,
+              viaAdapter: true,
+              sizeBytes: file.size,
+            };
+            setSource(loaded);
+            setMapping(parsedAdapter.config);
+            setTraces(applied.value);
+            setStep("preview");
+            return;
+          }
+          setAdapterIssue(
+            `Your saved custom adapter did not fit this file: ${applied.error}`,
+          );
+        } else {
+          setAdapterIssue(
+            `Your saved custom adapter is invalid JSON: ${parsedAdapter.error}`,
+          );
+        }
+      }
+
       const auto = autoRecognize(fields, rows[0]);
       const loaded: LoadedSource = {
         filename: file.name,
@@ -174,6 +231,7 @@ export function Wizard({
         envelopeKey,
         autoRecognized: auto !== null,
         usedNestedMessages: auto?.usedNestedMessages ?? false,
+        viaAdapter: false,
         sizeBytes: file.size,
       };
       setSource(loaded);
@@ -239,12 +297,34 @@ export function Wizard({
           <div
             role="alert"
             aria-live="assertive"
-            className="mb-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-800"
+            className="mb-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-800 whitespace-pre-line"
           >
             {error}
           </div>
         )}
-        {warning && !error && (
+        {adapterIssue && !error && (
+          <div
+            role="alert"
+            className="mb-4 rounded border-2 border-red-300 bg-red-50 p-3 text-xs text-red-800 flex items-start justify-between gap-3"
+          >
+            <div>
+              <strong>Custom adapter not applied.</strong> {adapterIssue}{" "}
+              The wizard is back, so you can map fields manually. To stop
+              the saved adapter from running on future loads, click Clear.
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                clearAdapter();
+                setAdapterIssue(null);
+              }}
+              className="shrink-0 px-2 py-1 text-xs font-medium rounded bg-red-600 text-white hover:bg-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+            >
+              Clear adapter
+            </button>
+          </div>
+        )}
+        {warning && !error && !adapterIssue && (
           <div
             role="status"
             aria-live="polite"
@@ -309,6 +389,7 @@ export function Wizard({
             envelopeKey={source.envelopeKey}
             usedNestedMessages={source.usedNestedMessages}
             autoRecognized={source.autoRecognized}
+            viaAdapter={source.viaAdapter}
             onBack={() => {
               setError(null);
               setStep("mapping");

@@ -1,109 +1,9 @@
 "use client";
 
 import type { Message } from "@/lib/trace/types";
+import { parseToolCalls, type ToolCallInfo } from "@/lib/trace/tool-calls";
 
 type Props = { messages: Message[] };
-
-type ToolCallInfo = {
-  name: string;
-  args: unknown;
-};
-
-function parseToolCall(content: string): ToolCallInfo | null {
-  const trimmed = content.trim();
-  if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) return null;
-  try {
-    const parsed: unknown = JSON.parse(trimmed);
-
-    if (Array.isArray(parsed) && parsed.length > 0) {
-      const first = parsed[0] as Record<string, unknown>;
-      if (first.type === "tool_use" && typeof first.name === "string") {
-        return { name: first.name, args: first.input ?? {} };
-      }
-      if (
-        first.type === "function" &&
-        first.function &&
-        typeof (first.function as Record<string, unknown>).name === "string"
-      ) {
-        const fn = first.function as Record<string, unknown>;
-        let args: unknown = fn.arguments;
-        if (typeof args === "string") {
-          try {
-            args = JSON.parse(args);
-          } catch {
-            // leave as string
-          }
-        }
-        return { name: fn.name as string, args };
-      }
-    }
-
-    if (typeof parsed === "object" && parsed !== null) {
-      const obj = parsed as Record<string, unknown>;
-
-      if (obj.type === "tool_use" && typeof obj.name === "string") {
-        return { name: obj.name, args: obj.input ?? {} };
-      }
-
-      if ("function_call" in obj) {
-        const fc = obj.function_call as Record<string, unknown>;
-        let args: unknown = fc.arguments;
-        if (typeof args === "string") {
-          try {
-            args = JSON.parse(args);
-          } catch {
-            // leave as string
-          }
-        }
-        return { name: (fc.name as string) ?? "unknown", args };
-      }
-
-      if ("tool_calls" in obj && Array.isArray(obj.tool_calls)) {
-        const first = obj.tool_calls[0] as Record<string, unknown>;
-        // OpenAI new format: tool_calls[0].function.{name, arguments}
-        const fn = first.function as Record<string, unknown> | undefined;
-        if (fn && typeof fn.name === "string") {
-          let args: unknown = fn.arguments;
-          if (typeof args === "string") {
-            try {
-              args = JSON.parse(args);
-            } catch {
-              // leave as string
-            }
-          }
-          return { name: fn.name, args };
-        }
-        // Older / custom format: tool_calls[0].{name, arguments} directly
-        if (typeof first.name === "string") {
-          let args: unknown = first.arguments ?? first.input ?? {};
-          if (typeof args === "string") {
-            try {
-              args = JSON.parse(args);
-            } catch {
-              // leave as string
-            }
-          }
-          return { name: first.name, args };
-        }
-      }
-
-      if ("name" in obj && "arguments" in obj && typeof obj.name === "string") {
-        let args: unknown = obj.arguments;
-        if (typeof args === "string") {
-          try {
-            args = JSON.parse(args);
-          } catch {
-            // leave as string
-          }
-        }
-        return { name: obj.name, args };
-      }
-    }
-  } catch {
-    // not parseable JSON
-  }
-  return null;
-}
 
 function ToolCallCard({ name, args }: ToolCallInfo) {
   return (
@@ -150,9 +50,18 @@ export function ToolCallRenderer({ messages }: Props) {
           return <ToolResultCard key={i} content={m.content} />;
         }
 
-        const toolCall = parseToolCall(m.content);
-        if (toolCall) {
-          return <ToolCallCard key={i} {...toolCall} />;
+        const toolCalls = parseToolCalls(m.content);
+        if (toolCalls.length > 0) {
+          // A single message can encode multiple parallel tool calls
+          // (OpenAI tool_calls[], Anthropic content blocks). Render one
+          // card per call so nothing is silently dropped.
+          return (
+            <div key={i} className="space-y-3">
+              {toolCalls.map((tc, j) => (
+                <ToolCallCard key={`${i}-${j}`} {...tc} />
+              ))}
+            </div>
+          );
         }
 
         const isUser = m.role === "user";

@@ -11,7 +11,8 @@
       "Bash(tee /tmp/gpt-initial-review.md)",
       "Bash(tee /tmp/gemini-initial-review.md)",
       "Bash(awk '/--- ChatGPT Review ---/{flag=1; next} /--- End Review ---/{flag=0} flag' /tmp/smoke-gpt-initial.md)",
-      "Bash(awk '/--- ChatGPT Response ---/{flag=1; next} /--- End Response ---/{flag=0} flag' /tmp/smoke-gpt-r1-out.md)"
+      "Bash(awk '/--- ChatGPT Response ---/{flag=1; next} /--- End Response ---/{flag=0} flag' /tmp/smoke-gpt-r1-out.md)",
+      "Bash(awk '{print $2}')"
     ]
   }
 }

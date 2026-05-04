@@ -58,20 +58,29 @@ A post-launch review bundle. Full change list in [docs/ux-research-note.md](docs
 - ToolCallRenderer chat bubble cap removed (max-h on bubbles only, JSON pre still capped)
 - Tag hierarchy reconsidered (no implementation; flat tags retained for now)
 
-### v3 scope (deferred, do not re-litigate for v2.x)
-- Power-user analysis: similarity highlighting + side-effect verification (#37)
-- Adapter pattern (adapter.ts) for power users (#16)
-- Braintrust export (#17)
-- SQLite storage backend (#32)
-- External platform integrations (#33)
-- Multi-format rendering (image, audio, video) (#34)
-- Batch labeling (#36) - deferred after wedge concern (premature taxonomy lock-in); revisit once open coding is internalized
-- Time-based progress estimation (#42)
-- LLM judge training pipeline (#44)
-- Alternate distribution shapes (CLI, notebook widget) (#45)
+### v3.0 scope (in progress, see plans/PLAN-v3.md)
+
+The "tool grows with the user" release. Same wedge as v1/v2 (teach the method as you use it for new PMs); v3 adds an explicit "I'm experienced" mode toggle in Settings that unlocks power features for serious practitioners. Beginners see the v1/v2 experience untouched.
+
+- Mode toggle foundation - Settings toggle, localStorage `ta:mode:v1`, no discovery cues
+- Time-based progress estimation (#42) - always-on, derives from existing audit log
+- Batch labeling (#36) - experienced mode only; multi-select traces, bulk apply tags/verdicts
+- Adapter pattern - JSON DSL only (#16) - experienced mode only; declarative transform config in Settings
+- Power-user analysis (#37) - experienced mode only; tool-call correctness review (Option A) plus string-based similarity highlighting
+
+### v3.1 scope (deferred)
+- Adapter pattern - repo-clone `adapter.ts` path (#16, companion to v3.0 JSON DSL)
+- SQLite storage backend (#32) - revisit only if v3.0 IndexedDB hits scale limits
+
+### Cut from v3 (closed during v3 planning)
+- Braintrust export (#17) - graduation path; contradicts "stay and grow" v3 framing
+- External platform integrations (#33) - same rationale as #17
+- Multi-format rendering (#34) - image/audio/video out of v3 scope
+- LLM judge training pipeline (#44) - meaningfully different product (LLMOps, not labeling)
+- Alternate distribution shapes (CLI + notebook widget) (#45) - audience drift toward ML engineers
 
 ### Explicitly rejected
-- Requirement 5.4 ("no hard and fast rules"). For a beginner-targeted tool, hard and fast rules are a feature, not a limitation. We pick defaults and ship them.
+- Requirement 5.4 ("no hard and fast rules"). For a beginner-targeted tool, hard and fast rules are a feature, not a limitation. We pick defaults and ship them. **v3 amendment:** rules apply in novice mode only; experienced mode (Settings toggle) unlocks flexibility for users who explicitly opt in.
 
 ## Who I Am
 
@@ -98,6 +107,8 @@ These come from established HCI practice and underpin every v1 feature. Preserve
 3. **Native rendering.** Show outputs in the form the end user sees. JSON only on demand.
 4. **User control.** Keyboard-driven, minimal context switching, reversible decisions.
 5. **Minimalism with progressive disclosure.** Hide nonessential detail by default. Allow drill-down.
+
+**v3 amendment.** The principles above are the novice-mode default. When the user has flipped the "I'm experienced" toggle in Settings, defaults bend: power features (batch labeling, custom adapters, tool-call review, similarity highlighting) appear, and the user takes responsibility for the trade-off. The novice experience must remain untouched - if a v3+ feature would change novice behavior in a non-trivial way, gate it behind the mode toggle.
 
 ### Anti-patterns to actively reject
 - Reviewing long, multi-turn traces in raw spreadsheet rows

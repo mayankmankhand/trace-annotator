@@ -9,6 +9,11 @@ type Props = {
   envelopeKey: EnvelopeKey | null;
   usedNestedMessages: boolean;
   autoRecognized: boolean;
+  // True when traces were mapped via a saved JSON DSL adapter rather than
+  // auto-recognition or manual mapping. Surfaces a chip so a power user
+  // who forgot they have an adapter saved sees why the wizard skipped the
+  // mapping step.
+  viaAdapter: boolean;
   onBack: () => void;
   onConfirm: () => void;
 };
@@ -52,6 +57,7 @@ export function PreviewStep({
   envelopeKey,
   usedNestedMessages,
   autoRecognized,
+  viaAdapter,
   onBack,
   onConfirm,
 }: Props) {
@@ -91,12 +97,30 @@ export function PreviewStep({
         </p>
       </div>
 
-      {autoRecognized && (
-        <ConfidenceBanner
-          count={traces.length}
-          envelopeKey={envelopeKey}
-          usedNestedMessages={usedNestedMessages}
-        />
+      {viaAdapter ? (
+        <div
+          role="status"
+          className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm"
+        >
+          <p className="font-medium text-blue-900">
+            Loaded {traces.length}{" "}
+            {traces.length === 1 ? "trace" : "traces"} via your custom
+            adapter (configured in Settings).
+          </p>
+          <p className="text-xs text-blue-800 mt-1">
+            The wizard skipped the mapping step because a saved adapter
+            applied cleanly. Confirm the first trace looks right, or clear
+            the adapter in Settings to use the normal flow next time.
+          </p>
+        </div>
+      ) : (
+        autoRecognized && (
+          <ConfidenceBanner
+            count={traces.length}
+            envelopeKey={envelopeKey}
+            usedNestedMessages={usedNestedMessages}
+          />
+        )
       )}
 
       <TraceRenderer trace={first} />

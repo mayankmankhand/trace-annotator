@@ -1,12 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Trace } from "@/lib/trace/types";
 import type { LabelRow } from "@/lib/labels/types";
 import { serialize, mimeType, fileName } from "@/lib/labels/serialize";
+import {
+  extractToolCalls,
+  type ToolCallVerdict,
+} from "@/lib/trace/tool-calls";
 import { TraceRenderer } from "@/components/renderer/TraceRenderer";
 import { TagPanel } from "./TagPanel";
 import { TagManagementPanel } from "./TagManagementPanel";
+import { ToolCallReviewPanel } from "./ToolCallReviewPanel";
+import { SimilarityPanel } from "./SimilarityPanel";
 import { Logo } from "@/components/Logo";
 import { useStateRef } from "@/hooks/useStateRef";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
@@ -24,14 +30,34 @@ import {
   resetCoaching,
 } from "./CoachingTip";
 import {
+  appendAuditEntriesBatch,
   appendAuditEntry,
+  clearAdapter,
+  loadAdapter,
   loadHotkeys,
+  loadMode,
+  loadRecentAuditEntries,
+  saveAdapter,
   saveHotkeys,
   saveLabels,
+  saveMode,
   saveSessionState,
+  type AuditEntry,
+  type AdapterRecord,
   type Hotkeys,
+  type Mode,
   DEFAULT_HOTKEYS,
 } from "@/lib/storage";
+import {
+  ADAPTER_EXAMPLE,
+  parseAdapterDSL,
+} from "@/lib/trace/adapter-dsl";
+import { ConfirmDialog } from "@/components/ui/Dialog";
+import { BatchPanel } from "./BatchPanel";
+import {
+  estimateSecondsRemaining,
+  formatRemaining,
+} from "@/lib/time-estimate";
 
 export type Verdict = "pass" | "fail";
 export type Annotation = {
@@ -44,6 +70,11 @@ export type Annotation = {
   // user can mark a trace skipped before deciding pass/fail. Rendered as
   // a badge in the trace header and filterable from the Find panel.
   skipped: boolean;
+  // Per-tool-call correctness verdicts (v3, #37 power analysis - tool-call
+  // review). Keyed by the tool call's stable index (its position in the
+  // trace's combined input+output message stream). Optional for backward
+  // compat with v1/v2 labels and only meaningful in experienced mode.
+  toolCallReviews?: Record<number, "right" | "wrong" | "skip">;
 };
 export type Annotations = Record<string, Annotation>;
 
@@ -67,24 +98,41 @@ const EMPTY_ANNOTATION: Annotation = {
   skipped: false,
 };
 
+function hasToolCallReviews(a: Annotation): boolean {
+  return !!a.toolCallReviews && Object.keys(a.toolCallReviews).length > 0;
+}
+
 function toRows(annotations: Annotations): LabelRow[] {
   return Object.entries(annotations)
-    .filter(([, a]) => a.verdict !== null || a.tags.length > 0 || a.note.trim() !== "")
+    .filter(
+      ([, a]) =>
+        a.verdict !== null ||
+        a.tags.length > 0 ||
+        a.note.trim() !== "" ||
+        hasToolCallReviews(a),
+    )
     .map(([id, a]) => annotationToRow(id, a));
 }
 
 function annotationToRow(trace_id: string, a: Annotation): LabelRow {
-  return {
+  const row: LabelRow = {
     trace_id,
     verdict: a.verdict,
     tags: a.tags,
     note: a.note,
     labeled_at: a.labeledAt || new Date().toISOString(),
   };
+  if (hasToolCallReviews(a)) row.tool_call_reviews = a.toolCallReviews;
+  return row;
 }
 
 function isEmptyAnnotation(a: Annotation): boolean {
-  return a.verdict === null && a.tags.length === 0 && a.note.trim() === "";
+  return (
+    a.verdict === null &&
+    a.tags.length === 0 &&
+    a.note.trim() === "" &&
+    !hasToolCallReviews(a)
+  );
 }
 
 function getOrEmpty(annotations: Annotations, id: string): Annotation {
@@ -158,15 +206,24 @@ export function TraceView({
     typeof getMilestoneForIndex
   > | null>(null);
 
-  // Undo stack: append-only log of {trace_id, before, after} entries. The
-  // top of the stack is the most recent change. Cmd/Ctrl+Z pops the top
-  // and restores `before` for that trace. We cap the stack at 100 to keep
-  // memory bounded; for v2.0 use cases (one user labeling hundreds of
-  // traces) that's overkill but cheap.
-  type UndoEntry = {
+  // Undo stack: append-only log of changes. The top of the stack is the
+  // most recent change. Cmd/Ctrl+Z pops the top and restores `before` for
+  // every trace in the entry. We cap the stack at 100 to keep memory bounded.
+  //
+  // v3 generalization (#36 batch labeling): a single user action can change
+  // N traces at once. Each undo entry now carries an array of changes so
+  // single-trace edits and batch ops share the same shape and the same undo
+  // path. `batchId` is set when the entry came from a batch op, mirroring
+  // the AuditEntry field that lets us reconcile the in-memory undo with the
+  // persisted audit log.
+  type UndoChange = {
     trace_id: string;
     before: Annotation;
     after: Annotation;
+  };
+  type UndoEntry = {
+    changes: UndoChange[];
+    batchId?: string;
   };
   const undoStackRef = useRef<UndoEntry[]>([]);
   const [undoCount, setUndoCount] = useState(0);
@@ -180,6 +237,42 @@ export function TraceView({
   useEffect(() => {
     setHotkeys(loadHotkeys());
   }, []);
+  // Mode toggle (v3). Default "novice" preserves the v1/v2 experience for
+  // beginners. "experienced" unlocks power features. Persisted via storage so
+  // the choice survives reloads. Same SSR-safe load pattern as hotkeys: render
+  // with the default first, swap to the stored value in useEffect.
+  const [mode, setMode] = useState<Mode>("novice");
+  useEffect(() => {
+    setMode(loadMode());
+  }, []);
+  // Rolling window of recent audit entries used by the v3 time estimator.
+  // Reloaded whenever an audit row is written. Loading from IDB is cheap
+  // (last ~25 rows via an indexed cursor) so re-querying on every label
+  // change is fine.
+  const [auditRecent, setAuditRecent] = useState<AuditEntry[]>([]);
+  // Increments on every audit write (single or batch). The audit-window
+  // effect keys on this so it refreshes for tool-call reviews, skip
+  // toggles, and tag-only changes too - not just verdicts (which were the
+  // only thing that bumped the previous `labeledCount` key).
+  const [auditWriteCount, setAuditWriteCount] = useState(0);
+  const bumpAuditWrites = useCallback(() => {
+    setAuditWriteCount((c) => c + 1);
+  }, []);
+  // Selected trace IDs for v3 batch labeling (#36). Only meaningful in
+  // experienced mode; the per-trace Select checkbox is hidden in novice
+  // mode so this set stays empty for beginners. Toggle via the checkbox in
+  // the trace header; clear via the BatchPanel "Clear" action or by
+  // unselecting individually.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // Pending bulk verdict, awaiting confirmation. Set when the user clicks
+  // "Pass all"/"Fail all" and one or more selected traces already have a
+  // different verdict that would be overwritten - we surface the impact
+  // count via ConfirmDialog before mutating, since bulk overwrite is a
+  // destructive action that's hard to spot once it happens.
+  const [pendingBulkVerdict, setPendingBulkVerdict] = useState<{
+    verdict: Verdict;
+    overwrites: number;
+  } | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   // Find popover toggles open from the top-bar tools row. Owned here so we
   // can dismiss it from anywhere (e.g. when the user takes another action).
@@ -196,6 +289,39 @@ export function TraceView({
   const annotation = getOrEmpty(annotations, trace.id);
   const labeledCount = Object.values(annotations).filter((a) => a.verdict !== null).length;
   const labelProgressPct = (labeledCount / total) * 100;
+  // Tool calls extracted from the current trace. Memoized so we don't re-scan
+  // every message on every render. Empty list = trace has no tool calls;
+  // the review panel and the header badge both hide gracefully in that case.
+  const toolCalls = useMemo(() => extractToolCalls(trace), [trace]);
+  const toolCallReviewedCount = annotation.toolCallReviews
+    ? Object.keys(annotation.toolCallReviews).length
+    : 0;
+
+  // Refresh the audit window on every audit write. Keyed on auditWriteCount
+  // (bumped from pushUndo and applyBatch* below) rather than labeledCount,
+  // because tool-call-only edits, skip toggles, and tag-only changes all
+  // write audit rows but don't bump the verdict count. Errors here are
+  // non-fatal: the estimator returns null on insufficient data and the
+  // subline simply hides.
+  useEffect(() => {
+    let cancelled = false;
+    loadRecentAuditEntries(fingerprint, 25)
+      .then((entries) => {
+        if (!cancelled) setAuditRecent(entries);
+      })
+      .catch(() => {
+        // Storage unavailable; the existing storageUnavailable banner already
+        // tells the user. The estimator subline stays hidden.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [fingerprint, auditWriteCount]);
+  const remainingSeconds = estimateSecondsRemaining(
+    auditRecent,
+    total,
+    labeledCount,
+  );
 
   // matchesFilter: pure predicate over (filter, traceIndex, currentAnnotations).
   // Defined here as a hook-stable callback so navigation handlers can rely on it.
@@ -285,13 +411,13 @@ export function TraceView({
   );
 
   // pushUndo records a before/after snapshot for the trace currently being
-  // changed and appends a row to the persistent audit log. `undo()` writes
-  // directly through setAnnotations and never goes through pushUndo, so no
-  // re-entrancy guard is needed here.
+  // changed and appends a row to the persistent audit log. Must be called
+  // OUTSIDE any setAnnotations updater (React requires updaters to be pure;
+  // StrictMode would call them twice and we'd double-write the audit log).
   const pushUndo = useCallback(
     (trace_id: string, before: Annotation, after: Annotation) => {
       const stack = undoStackRef.current;
-      stack.push({ trace_id, before, after });
+      stack.push({ changes: [{ trace_id, before, after }] });
       // Cap stack length to bound memory.
       if (stack.length > 100) stack.shift();
       setUndoCount(stack.length);
@@ -304,60 +430,215 @@ export function TraceView({
         before: isEmptyAnnotation(before) ? null : annotationToRow(trace_id, before),
         after: isEmptyAnnotation(after) ? null : annotationToRow(trace_id, after),
       }).catch(() => {});
+      bumpAuditWrites();
     },
-    [fingerprint],
+    [fingerprint, bumpAuditWrites],
   );
 
   const applyVerdict = useCallback(
     (v: Verdict) => {
-      setAnnotations((prev) => {
-        const cur = getOrEmpty(prev, trace.id);
-        const isEdited = cur.isEdited || (cur.verdict !== null && cur.verdict !== v);
-        const next: Annotation = {
+      // Compute outside the setAnnotations updater so audit/undo side
+      // effects fire exactly once even under React StrictMode (which runs
+      // updater functions twice). annotationsRef.current is always the
+      // latest accepted state thanks to useStateRef.
+      const prev = annotationsRef.current;
+      const cur = getOrEmpty(prev, trace.id);
+      const isEdited = cur.isEdited || (cur.verdict !== null && cur.verdict !== v);
+      const next: Annotation = {
+        ...cur,
+        verdict: v,
+        isEdited,
+        // Applying a verdict implicitly resolves the "needs review" state.
+        skipped: false,
+        labeledAt: cur.labeledAt || new Date().toISOString(),
+      };
+      setAnnotations({ ...prev, [trace.id]: next });
+      pushUndo(trace.id, cur, next);
+    },
+    [trace.id, pushUndo, setAnnotations, annotationsRef],
+  );
+
+  // Batch labeling primitives (v3, #36). All three callbacks below are
+  // gated by the experienced-mode UI surface; they're safe to call with an
+  // empty selection (no-op).
+  const toggleSelected = useCallback((traceId: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(traceId)) next.delete(traceId);
+      else next.add(traceId);
+      return next;
+    });
+  }, []);
+
+  const clearSelection = useCallback(() => {
+    setSelectedIds(new Set());
+  }, []);
+
+  // Select every trace that matches the current filter (or every trace if
+  // the filter is "all"). Replaces any prior selection. Exposed so the user
+  // has a one-click path from "no selection" to "operating on the whole
+  // visible subset" - without this, batch labeling required ticking N
+  // checkboxes one trace at a time, which defeats its purpose.
+  const selectAllMatching = useCallback(() => {
+    const ids = new Set<string>();
+    const anns = annotationsRef.current;
+    for (let i = 0; i < total; i++) {
+      if (matchesFilter(i, anns)) ids.add(traces[i].id);
+    }
+    setSelectedIds(ids);
+  }, [total, traces, matchesFilter, annotationsRef]);
+
+  // Count of traces matching the current filter. Used to label the "Select
+  // all matching" affordance ("Select all matching (47)").
+  const matchingCount = (() => {
+    let count = 0;
+    for (let i = 0; i < total; i++) {
+      if (matchesFilter(i, annotations)) count++;
+    }
+    return count;
+  })();
+
+  // Generate a unique batch ID. Used to group audit entries written
+  // together so the time estimator can exclude them and so a future "show
+  // me history of batches" feature can scope its query. Prefers the modern
+  // crypto.randomUUID for a real collision-free guarantee; falls back to a
+  // timestamped random string on older runtimes.
+  function generateBatchId(): string {
+    if (
+      typeof crypto !== "undefined" &&
+      typeof crypto.randomUUID === "function"
+    ) {
+      return `batch-${crypto.randomUUID()}`;
+    }
+    return `batch-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  }
+
+  // Internal: actually performs the batch verdict mutation. Called either
+  // directly (no overwrites detected) or after the user confirms via the
+  // ConfirmDialog. Side effects fire outside setAnnotations for StrictMode
+  // safety.
+  const performBatchVerdict = useCallback(
+    (v: Verdict) => {
+      if (selectedIds.size === 0) return;
+      const prev = annotationsRef.current;
+      const batchId = generateBatchId();
+      const at = new Date().toISOString();
+      const next = { ...prev };
+      const changes: UndoChange[] = [];
+      const auditEntries: AuditEntry[] = [];
+      for (const id of selectedIds) {
+        const cur = getOrEmpty(prev, id);
+        const isEdited =
+          cur.isEdited || (cur.verdict !== null && cur.verdict !== v);
+        const after: Annotation = {
           ...cur,
           verdict: v,
           isEdited,
-          // Applying a verdict implicitly resolves the "needs review" state.
           skipped: false,
-          labeledAt: cur.labeledAt || new Date().toISOString(),
+          labeledAt: cur.labeledAt || at,
         };
-        pushUndo(trace.id, cur, next);
-        return { ...prev, [trace.id]: next };
-      });
+        next[id] = after;
+        changes.push({ trace_id: id, before: cur, after });
+        auditEntries.push({
+          fingerprint,
+          trace_id: id,
+          at,
+          before: isEmptyAnnotation(cur) ? null : annotationToRow(id, cur),
+          after: annotationToRow(id, after),
+          batchId,
+        });
+      }
+      if (changes.length === 0) return;
+      setAnnotations(next);
+      const stack = undoStackRef.current;
+      stack.push({ changes, batchId });
+      if (stack.length > 100) stack.shift();
+      setUndoCount(stack.length);
+      appendAuditEntriesBatch(auditEntries).catch(() => {});
+      bumpAuditWrites();
     },
-    // setAnnotations is the stable setter from useStateRef; included here
-    // so the exhaustive-deps lint stays clean.
-    [trace.id, pushUndo, setAnnotations],
+    [fingerprint, selectedIds, setAnnotations, annotationsRef, bumpAuditWrites],
+  );
+
+  // Public entry: gates the bulk verdict behind a ConfirmDialog when one or
+  // more selected traces already have a different verdict. Without the
+  // gate, an accidental "Pass all" click silently overwrote N traces of
+  // prior work. The dialog quotes the count so the user sees the blast
+  // radius before confirming. Cmd/Ctrl+Z still undoes the entire batch in
+  // one step if they confirm and regret it.
+  const applyBatchVerdict = useCallback(
+    (v: Verdict) => {
+      if (selectedIds.size === 0) return;
+      const prev = annotationsRef.current;
+      let overwrites = 0;
+      for (const id of selectedIds) {
+        const cur = prev[id];
+        if (cur && cur.verdict !== null && cur.verdict !== v) overwrites++;
+      }
+      if (overwrites > 0) {
+        setPendingBulkVerdict({ verdict: v, overwrites });
+        return;
+      }
+      performBatchVerdict(v);
+    },
+    [selectedIds, annotationsRef, performBatchVerdict],
+  );
+
+  // Tool-call correctness review (v3, #37). Toggling a verdict to its
+  // current value clears it (passing null), which lets users undo a click
+  // without an explicit "clear" button. Routes through pushUndo so each
+  // change is recorded in the audit log and reversible via Cmd/Ctrl+Z.
+  // Side effects fire outside the setAnnotations call to stay StrictMode-safe.
+  const applyToolCallReview = useCallback(
+    (toolCallIndex: number, verdict: ToolCallVerdict | null) => {
+      const prev = annotationsRef.current;
+      const cur = getOrEmpty(prev, trace.id);
+      const nextReviews: Record<number, ToolCallVerdict> = {
+        ...(cur.toolCallReviews ?? {}),
+      };
+      if (verdict === null) {
+        delete nextReviews[toolCallIndex];
+      } else {
+        nextReviews[toolCallIndex] = verdict;
+      }
+      const next: Annotation = {
+        ...cur,
+        labeledAt: cur.labeledAt || new Date().toISOString(),
+        toolCallReviews:
+          Object.keys(nextReviews).length > 0 ? nextReviews : undefined,
+      };
+      setAnnotations({ ...prev, [trace.id]: next });
+      pushUndo(trace.id, cur, next);
+    },
+    [trace.id, pushUndo, setAnnotations, annotationsRef],
   );
 
   // Toggle skip (review later). Independent of verdict so the user can mark
   // a trace skipped, then later go back and apply pass/fail.
   const toggleSkip = useCallback(() => {
-    setAnnotations((prev) => {
-      const cur = getOrEmpty(prev, trace.id);
-      const next: Annotation = {
-        ...cur,
-        skipped: !cur.skipped,
-        labeledAt: cur.labeledAt || new Date().toISOString(),
-      };
-      pushUndo(trace.id, cur, next);
-      return { ...prev, [trace.id]: next };
-    });
-  }, [trace.id, pushUndo, setAnnotations]);
+    const prev = annotationsRef.current;
+    const cur = getOrEmpty(prev, trace.id);
+    const next: Annotation = {
+      ...cur,
+      skipped: !cur.skipped,
+      labeledAt: cur.labeledAt || new Date().toISOString(),
+    };
+    setAnnotations({ ...prev, [trace.id]: next });
+    pushUndo(trace.id, cur, next);
+  }, [trace.id, pushUndo, setAnnotations, annotationsRef]);
 
   const updateAnnotation = useCallback(
     (a: Annotation) => {
-      setAnnotations((prev) => {
-        const cur = getOrEmpty(prev, trace.id);
-        const next: Annotation = {
-          ...a,
-          labeledAt: a.labeledAt || new Date().toISOString(),
-        };
-        pushUndo(trace.id, cur, next);
-        return { ...prev, [trace.id]: next };
-      });
+      const prev = annotationsRef.current;
+      const cur = getOrEmpty(prev, trace.id);
+      const next: Annotation = {
+        ...a,
+        labeledAt: a.labeledAt || new Date().toISOString(),
+      };
+      setAnnotations({ ...prev, [trace.id]: next });
+      pushUndo(trace.id, cur, next);
     },
-    [trace.id, pushUndo, setAnnotations],
+    [trace.id, pushUndo, setAnnotations, annotationsRef],
   );
 
   const undo = useCallback(() => {
@@ -367,24 +648,32 @@ export function TraceView({
     setUndoCount(stack.length);
     setAnnotations((prev) => {
       const next = { ...prev };
-      // If the previous state was empty (creation case), drop the entry
-      // entirely so toRows doesn't emit a row with verdict=null and empty
-      // tags/note - matches the v1 "untouched trace" semantics.
-      if (
-        last.before.verdict === null &&
-        last.before.tags.length === 0 &&
-        last.before.note === ""
-      ) {
-        delete next[last.trace_id];
-      } else {
-        next[last.trace_id] = last.before;
+      // Revert every trace in this entry. Single-trace edits have one change;
+      // batch ops have many. Same code path either way.
+      for (const c of last.changes) {
+        // If the previous state was empty (creation case), drop the entry
+        // entirely so toRows doesn't emit a row with verdict=null and empty
+        // tags/note - matches the v1 "untouched trace" semantics.
+        if (
+          c.before.verdict === null &&
+          c.before.tags.length === 0 &&
+          c.before.note === ""
+        ) {
+          delete next[c.trace_id];
+        } else {
+          next[c.trace_id] = c.before;
+        }
       }
       return next;
     });
-    // Jump to the trace whose change we're reverting so the user sees what
-    // happened. Skipped if they're already there.
-    const targetIdx = traces.findIndex((t) => t.id === last.trace_id);
-    if (targetIdx >= 0 && targetIdx !== index) setIndex(targetIdx);
+    // Jump to the (first) trace whose change we're reverting so the user
+    // sees what happened. Skipped if they're already there. For batch
+    // undos, jumping to the first change is a reasonable focal point.
+    const firstChange = last.changes[0];
+    if (firstChange) {
+      const targetIdx = traces.findIndex((t) => t.id === firstChange.trace_id);
+      if (targetIdx >= 0 && targetIdx !== index) setIndex(targetIdx);
+    }
   }, [index, traces, setAnnotations]);
 
   const addTagToSession = useCallback((tag: string) => {
@@ -433,6 +722,60 @@ export function TraceView({
     });
     setAllTags((prev) => prev.filter((t) => t !== tag));
   }, [setAnnotations]);
+
+  // Apply a tag to every selected trace (v3 batch labeling, #36). Skips any
+  // trace that already has the tag so an accidental double-apply is a no-op
+  // rather than a corrupting duplicate. Hits the same in-memory annotations,
+  // undo stack, and audit log as applyBatchVerdict.
+  const applyBatchTag = useCallback(
+    (tag: string) => {
+      const cleanTag = tag.trim();
+      if (selectedIds.size === 0 || cleanTag === "") return;
+      // Compute the diff outside setAnnotations (StrictMode purity).
+      const prev = annotationsRef.current;
+      const batchId = generateBatchId();
+      const at = new Date().toISOString();
+      const next = { ...prev };
+      const changes: UndoChange[] = [];
+      const auditEntries: AuditEntry[] = [];
+      for (const id of selectedIds) {
+        const cur = getOrEmpty(prev, id);
+        if (cur.tags.includes(cleanTag)) continue;
+        const after: Annotation = {
+          ...cur,
+          tags: [...cur.tags, cleanTag],
+          labeledAt: cur.labeledAt || at,
+        };
+        next[id] = after;
+        changes.push({ trace_id: id, before: cur, after });
+        auditEntries.push({
+          fingerprint,
+          trace_id: id,
+          at,
+          before: isEmptyAnnotation(cur) ? null : annotationToRow(id, cur),
+          after: annotationToRow(id, after),
+          batchId,
+        });
+      }
+      if (changes.length === 0) return;
+      setAnnotations(next);
+      addTagToSession(cleanTag);
+      const stack = undoStackRef.current;
+      stack.push({ changes, batchId });
+      if (stack.length > 100) stack.shift();
+      setUndoCount(stack.length);
+      appendAuditEntriesBatch(auditEntries).catch(() => {});
+      bumpAuditWrites();
+    },
+    [
+      fingerprint,
+      selectedIds,
+      addTagToSession,
+      setAnnotations,
+      annotationsRef,
+      bumpAuditWrites,
+    ],
+  );
 
   const applyQuickTag = useCallback(
     (tag: string) => {
@@ -668,6 +1011,18 @@ export function TraceView({
           >
             {labeledCount} of {total} labeled
           </p>
+          {remainingSeconds !== null && remainingSeconds > 0 && (
+            <p
+              aria-live="polite"
+              aria-atomic="true"
+              aria-label={`Estimated time remaining (from your recent pace): ${formatRemaining(remainingSeconds)}`}
+              className="text-[11px] text-gray-400 mt-0.5"
+              title="Estimated from your recent labeling pace"
+            >
+              {total - labeledCount} traces left,{" "}
+              {formatRemaining(remainingSeconds)}
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-3 flex-wrap justify-end">
           {!tipsChipDismissed && (
@@ -749,11 +1104,22 @@ export function TraceView({
               <span className="ml-0.5 text-gray-400">({undoCount})</span>
             )}
           </button>
+          {mode === "experienced" && (
+            <button
+              type="button"
+              onClick={() => setSettingsOpen(true)}
+              aria-label="Experienced mode is on. Click to open Settings and toggle off."
+              title="Experienced mode is on. Click to open Settings and toggle off."
+              className="inline-flex items-center rounded-full border border-blue-300 bg-blue-50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-blue-700 hover:bg-blue-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            >
+              Experienced
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setSettingsOpen(true)}
             aria-label="Open settings"
-            title="Settings (hotkeys)"
+            title="Settings (mode and hotkeys)"
             className="text-xs text-gray-400 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded px-1"
           >
             Settings
@@ -809,6 +1175,38 @@ export function TraceView({
                   {t}
                 </span>
               ))}
+              {mode === "experienced" && toolCalls.length > 0 && (
+                <span
+                  className="inline-flex items-center rounded-full border border-gray-300 bg-white px-2 py-0.5 text-xs font-medium text-gray-700"
+                  title="Number of tool calls reviewed in this trace. Informational only - does not force the verdict."
+                >
+                  tool calls: {toolCallReviewedCount}/{toolCalls.length}
+                </span>
+              )}
+              {mode === "experienced" && (
+                <div className="inline-flex items-center gap-3 ml-auto">
+                  <label className="inline-flex items-center gap-1 cursor-pointer text-xs text-gray-600">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(trace.id)}
+                      onChange={() => toggleSelected(trace.id)}
+                      className="h-3.5 w-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      aria-label="Select this trace for batch action"
+                    />
+                    <span>Select for batch</span>
+                  </label>
+                  {matchingCount > 1 && (
+                    <button
+                      type="button"
+                      onClick={selectAllMatching}
+                      title="Add every trace matching the current filter to the batch selection"
+                      className="text-xs text-blue-700 hover:text-blue-900 underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded"
+                    >
+                      Select all matching ({matchingCount})
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
 
             {trace.metadata && Object.keys(trace.metadata).length > 0 && (
@@ -856,6 +1254,15 @@ export function TraceView({
           aria-label="Label and navigate"
           className="basis-1/4 min-w-[220px] max-w-[360px] border-l bg-white px-4 py-6 overflow-auto flex flex-col gap-5"
         >
+          {mode === "experienced" && selectedIds.size > 0 && (
+            <BatchPanel
+              selectedCount={selectedIds.size}
+              allTags={allTags}
+              onApplyVerdict={applyBatchVerdict}
+              onApplyTag={applyBatchTag}
+              onClear={clearSelection}
+            />
+          )}
           <div>
             <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
               Label this trace
@@ -890,6 +1297,26 @@ export function TraceView({
               </button>
             </div>
           </div>
+
+          {mode === "experienced" && toolCalls.length > 0 && (
+            <ToolCallReviewPanel
+              toolCalls={toolCalls}
+              reviews={annotation.toolCallReviews}
+              onReview={applyToolCallReview}
+            />
+          )}
+
+          {mode === "experienced" && total > 1 && (
+            <SimilarityPanel
+              traces={traces}
+              currentTraceId={trace.id}
+              fingerprint={fingerprint}
+              onJumpToTrace={(traceId) => {
+                const idx = traces.findIndex((t) => t.id === traceId);
+                if (idx >= 0) setIndex(idx);
+              }}
+            />
+          )}
 
           <div>
             <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
@@ -945,11 +1372,52 @@ export function TraceView({
       <SettingsModal
         open={settingsOpen}
         hotkeys={hotkeys}
+        mode={mode}
         onClose={() => setSettingsOpen(false)}
         onChange={(next) => {
           setHotkeys(next);
           saveHotkeys(next);
         }}
+        onModeChange={(next) => {
+          setMode(next);
+          saveMode(next);
+        }}
+      />
+
+      <ConfirmDialog
+        open={pendingBulkVerdict !== null}
+        title={
+          pendingBulkVerdict
+            ? `Apply ${pendingBulkVerdict.verdict === "pass" ? "Pass" : "Fail"} to ${selectedIds.size} traces?`
+            : ""
+        }
+        body={
+          pendingBulkVerdict ? (
+            <div className="space-y-2">
+              <p>
+                <strong>{pendingBulkVerdict.overwrites}</strong> of these traces
+                already have a different verdict. Continuing will overwrite
+                their current verdicts and mark them as Edited.
+              </p>
+              <p className="text-xs text-gray-500">
+                Cmd/Ctrl+Z reverts the entire batch in one step.
+              </p>
+            </div>
+          ) : null
+        }
+        confirmLabel={
+          pendingBulkVerdict
+            ? `Apply ${pendingBulkVerdict.verdict === "pass" ? "Pass" : "Fail"} to ${selectedIds.size}`
+            : "Confirm"
+        }
+        destructive
+        onConfirm={() => {
+          if (pendingBulkVerdict) {
+            performBatchVerdict(pendingBulkVerdict.verdict);
+          }
+          setPendingBulkVerdict(null);
+        }}
+        onCancel={() => setPendingBulkVerdict(null)}
       />
 
       <nav
@@ -992,6 +1460,19 @@ export function TraceView({
             <span><kbd className="font-mono font-semibold text-gray-500">1-{Math.min(4, topTags.length)}</kbd> Tag</span>
           )}
           <span><kbd className="font-mono font-semibold text-gray-500">?</kbd> Tips</span>
+          {mode === "experienced" && (
+            <>
+              <span className="text-gray-300" aria-hidden="true">|</span>
+              <span title="Tick the Select for batch checkbox in the trace header to start a batch">
+                <span className="text-blue-700 font-medium">Select</span> traces for batch
+              </span>
+              {toolCalls.length > 0 && (
+                <span title="Tool-call review panel appears in the right sidebar for traces with tool calls">
+                  <span className="text-blue-700 font-medium">Review</span> tool calls
+                </span>
+              )}
+            </>
+          )}
         </div>
       </nav>
     </div>
@@ -1099,13 +1580,17 @@ function validateHotkey(
 function SettingsModal({
   open,
   hotkeys,
+  mode,
   onClose,
   onChange,
+  onModeChange,
 }: {
   open: boolean;
   hotkeys: Hotkeys;
+  mode: Mode;
   onClose: () => void;
   onChange: (next: Hotkeys) => void;
+  onModeChange: (next: Mode) => void;
 }) {
   // Trap focus inside the dialog and restore it to the trigger on close so
   // keyboard users cannot tab into the obscured background.
@@ -1141,11 +1626,11 @@ function SettingsModal({
     >
       <div
         ref={dialogRef}
-        className="w-full max-w-md rounded-lg bg-white shadow-xl border"
+        className="w-full max-w-md rounded-lg bg-white shadow-xl border flex flex-col max-h-[85vh]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="px-5 py-4 border-b flex items-center justify-between">
-          <h2 className="text-base font-semibold text-gray-900">Hotkeys</h2>
+          <h2 className="text-base font-semibold text-gray-900">Settings</h2>
           <button
             type="button"
             onClick={onClose}
@@ -1155,31 +1640,38 @@ function SettingsModal({
             &times;
           </button>
         </div>
-        <div className="px-5 py-3 text-xs text-gray-600">
-          Click a row, then press a single letter. Digits 1-4, Enter, and the
-          arrow keys are reserved. Cmd/Ctrl+Z is reserved for undo.
+        <div className="flex-1 overflow-y-auto">
+          <ModeSection mode={mode} onModeChange={onModeChange} />
+          <div className="px-5 pt-4 pb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+            Hotkeys
+          </div>
+          <div className="px-5 py-2 text-xs text-gray-600">
+            Click a row, then press a single letter. Digits 1-4, Enter, and the
+            arrow keys are reserved. Cmd/Ctrl+Z is reserved for undo.
+          </div>
+          <ul className="divide-y px-5 pb-3">
+            {rows.map((row) => (
+              <HotkeyRow
+                key={row.id}
+                label={row.label}
+                actionId={row.id}
+                allHotkeys={hotkeys}
+                value={hotkeys[row.id]}
+                onCapture={(next) =>
+                  onChange({ ...hotkeys, [row.id]: next })
+                }
+              />
+            ))}
+          </ul>
+          {mode === "experienced" && <AdapterSection />}
         </div>
-        <ul className="divide-y px-5 pb-3">
-          {rows.map((row) => (
-            <HotkeyRow
-              key={row.id}
-              label={row.label}
-              actionId={row.id}
-              allHotkeys={hotkeys}
-              value={hotkeys[row.id]}
-              onCapture={(next) =>
-                onChange({ ...hotkeys, [row.id]: next })
-              }
-            />
-          ))}
-        </ul>
         <div className="px-5 py-3 border-t flex justify-between">
           <button
             type="button"
             onClick={() => onChange(DEFAULT_HOTKEYS)}
             className="text-xs text-gray-600 hover:text-gray-900 underline"
           >
-            Reset to defaults
+            Reset hotkeys
           </button>
           <button
             type="button"
@@ -1189,6 +1681,191 @@ function SettingsModal({
             Done
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// Mode toggle section at the top of the Settings modal. v3.
+//
+// Renders a single labeled toggle with help text. Beginners see the v1/v2
+// experience by default; flipping this on reveals batch labeling, JSON DSL
+// adapter, tool-call review, and similarity highlighting in later v3 features.
+//
+// No discovery cues elsewhere in the app: experienced users find this when
+// they go looking. That choice was made during /explore (user explicitly
+// rejected coaching-card and earned-milestone discovery patterns).
+function ModeSection({
+  mode,
+  onModeChange,
+}: {
+  mode: Mode;
+  onModeChange: (next: Mode) => void;
+}) {
+  const isExperienced = mode === "experienced";
+  return (
+    <div className="px-5 pt-4 pb-3 border-b">
+      <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 mb-2">
+        Mode
+      </div>
+      <label className="flex items-start gap-3 cursor-pointer">
+        <button
+          type="button"
+          role="switch"
+          aria-checked={isExperienced}
+          onClick={() => onModeChange(isExperienced ? "novice" : "experienced")}
+          className={`mt-0.5 relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
+            isExperienced ? "bg-blue-600" : "bg-gray-300"
+          }`}
+        >
+          <span
+            className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+              isExperienced ? "translate-x-4" : "translate-x-0.5"
+            }`}
+          />
+        </button>
+        <span className="flex-1">
+          <span className="block text-sm font-medium text-gray-900">
+            I&apos;m experienced (show power features)
+          </span>
+          <span className="block text-xs text-gray-600 mt-0.5">
+            Adds batch labeling, custom adapters, tool-call review, and
+            similarity highlighting. Toggle off any time to return to the
+            beginner experience.
+          </span>
+        </span>
+      </label>
+    </div>
+  );
+}
+
+// Custom adapter (JSON DSL) editor section for the Settings modal. v3, #16.
+//
+// Power users in experienced mode paste a JSON object describing how to map
+// raw rows from a non-standard file shape to the internal Trace shape. Once
+// saved, every subsequent file load skips the wizard's mapping step and
+// applies this config directly. See src/lib/trace/adapter-dsl.ts for the
+// supported schema and src/components/wizard/Wizard.tsx for where it's
+// applied at load time.
+//
+// Three actions: Validate (parses without saving, useful for iterating on
+// the JSON), Save (validates then persists), and Clear (drops the saved
+// adapter so future loads use the normal wizard).
+function AdapterSection() {
+  const [saved, setSaved] = useState<AdapterRecord | null>(() => loadAdapter());
+  const [draft, setDraft] = useState(() => loadAdapter()?.json ?? "");
+  const [feedback, setFeedback] = useState<{
+    kind: "ok" | "err";
+    msg: string;
+  } | null>(null);
+
+  function validate() {
+    const result = parseAdapterDSL(draft);
+    if (result.ok) {
+      setFeedback({
+        kind: "ok",
+        msg: "Looks valid. Click Save to apply on the next file load.",
+      });
+    } else {
+      setFeedback({ kind: "err", msg: result.error });
+    }
+  }
+
+  function save() {
+    const result = parseAdapterDSL(draft);
+    if (!result.ok) {
+      setFeedback({ kind: "err", msg: result.error });
+      return;
+    }
+    saveAdapter(draft);
+    setSaved(loadAdapter());
+    setFeedback({
+      kind: "ok",
+      msg: "Saved. The next file you load will skip the mapping step.",
+    });
+  }
+
+  function clear() {
+    clearAdapter();
+    setSaved(null);
+    setDraft("");
+    setFeedback({
+      kind: "ok",
+      msg: "Cleared. Future loads use the normal wizard.",
+    });
+  }
+
+  return (
+    <div className="px-5 pt-4 pb-4 border-t">
+      <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 mb-1">
+        Custom adapter (JSON)
+      </div>
+      <p className="text-xs text-gray-600 mb-2">
+        Paste a JSON object describing how your trace files map to the
+        internal shape. Once saved, file loads skip the wizard mapping step.
+        Field names support dot-notation for nested objects (e.g.{" "}
+        <code className="font-mono">data.messages</code>).
+      </p>
+      <p className="text-[11px] text-gray-500 mb-2">
+        {saved ? (
+          <>
+            Adapter saved at{" "}
+            <span className="font-mono text-gray-700">
+              {new Date(saved.savedAt).toLocaleString()}
+            </span>
+          </>
+        ) : (
+          <>No adapter saved. The wizard runs normally on file load.</>
+        )}
+      </p>
+      <textarea
+        value={draft}
+        onChange={(e) => {
+          setDraft(e.target.value);
+          setFeedback(null);
+        }}
+        placeholder={ADAPTER_EXAMPLE}
+        rows={8}
+        spellCheck={false}
+        aria-label="Custom adapter JSON"
+        className="w-full font-mono text-[11px] rounded border border-gray-300 px-2 py-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+      />
+      {feedback && (
+        <p
+          role="status"
+          aria-live="polite"
+          className={`mt-1 text-[11px] ${
+            feedback.kind === "ok" ? "text-green-700" : "text-red-700"
+          }`}
+        >
+          {feedback.msg}
+        </p>
+      )}
+      <div className="mt-2 flex gap-2 justify-end">
+        <button
+          type="button"
+          onClick={clear}
+          disabled={!saved && draft.trim() === ""}
+          className="text-xs text-gray-600 hover:text-gray-900 underline disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          Clear
+        </button>
+        <button
+          type="button"
+          onClick={validate}
+          disabled={draft.trim() === ""}
+          className="text-xs px-3 py-1 rounded border border-gray-300 text-gray-800 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          Validate
+        </button>
+        <button
+          type="button"
+          onClick={save}
+          disabled={draft.trim() === ""}
+          className="text-xs px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          Save
+        </button>
       </div>
     </div>
   );

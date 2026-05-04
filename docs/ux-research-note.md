@@ -201,3 +201,28 @@ Phase B should NOT start until the user approves this note.
 - Random sample input includes a one-line helper for newcomers ("Pick a random subset to focus on - useful for spot-checking a large file"). Validation surfaces "Only X traces available" when the requested size exceeds `total`.
 - FindPopover footer adds an "Esc to close" hint, matching the explanatory tone of SettingsModal.
 - Progressbar `aria-valuenow` reports `labeledCount` (matching the visible fill), with `aria-valuetext` providing a screen-reader-friendly summary; trace position is already announced by the live region above.
+
+---
+
+## 9. v3.0 Amendments (the "tool grows with the user" release)
+
+Plan: [plans/PLAN-v3.md](../plans/PLAN-v3.md). Release notes: [RELEASE-NOTES-v3.0.md](../RELEASE-NOTES-v3.0.md).
+
+### 9.1 Design decisions (rationale belongs here)
+
+- **Mode toggle, not separate product.** The wedge held: still "teach the method as you use it for new PMs". v3 amends it with "the same tool grows with the user." Implementation is one localStorage flag (`ta:mode:v1`) and conditional rendering for power features. Beginners are unaffected. The original CLAUDE.md design principle "hard and fast rules are a feature" is preserved as a novice-mode default; experienced mode lifts the rules for users who explicitly opt in.
+- **No discovery cues for the toggle.** /explore considered three options (settings only, coaching card, earned milestone). User picked settings only. Cost: experienced practitioners have to know the toggle exists. Benefit: novice mode never breaks the teaching arc with "you might be ready" prompts.
+- **Tool-call review badge does NOT force verdict.** Roll-up is informational ("tool calls: 2/3 reviewed"). A reviewer can mark every tool call right and still set the trace to Fail (or vice versa). Hard rollup would create contradictory states; users would either lose information or be forced into ambiguous situations. The tool-call panel and the trace verdict are independent surfaces with independent meanings.
+- **String-based similarity, not embeddings, in v3.0.** Embedding-based similarity (transformers.js + a small all-MiniLM model) would add ~25MB to the bundle and 5-10s of first-use latency. TF-IDF + cosine ships zero bundle cost and is "good enough" for surface use. Upgrade path is preserved if quality is not enough; revisit in v3.1+.
+- **JSON DSL for adapter in v3.0; repo-clone path in v3.1.** A browser-only JSON DSL helps more users at lower complexity. The repo-clone `adapter.ts` path (where a power user writes actual TypeScript transform logic) is a v3.1 companion.
+- **SQLite deferred to v3.1.** IndexedDB scales fine for v3.0 trace volumes (a few thousand traces). Revisit only if v3.0 similarity at scale forces it.
+- **Right panel role honored.** Per §8.1, the right panel is the per-trace decision surface. v3 power features that belong there (BatchPanel, ToolCallReviewPanel, SimilarityPanel) all act on the current trace or the active selection. Session-level tools (Settings, Find, Export) stay in the top bar.
+
+### 9.2 Implementation fixes (touched the design surface but not decisions)
+
+- Settings modal restructured to `flex flex-col max-h-[85vh]` with a scrollable body, so all three sections (Mode, Hotkeys, Adapter) fit on small viewports. Header and footer stay pinned.
+- `UndoEntry` generalized from `{trace_id, before, after}` to `{ changes: UndoChange[], batchId? }`. Single-trace edits push one change; batch ops push N. `undo()` iterates over `changes` either way, so the in-memory undo path is the same for both.
+- `AuditEntry` gained an optional `batchId`. The time estimator (#42) excludes batch entries from its rolling median so applying a tag to 50 traces does not crash the per-label average to milliseconds. Future "show me history of batches" features can scope by batchId.
+- Tool-call parser factored from `ToolCallRenderer.tsx` into `src/lib/trace/tool-calls.ts`. Same logic; both the renderer and the review panel now import from one source of truth.
+- `applyMapping` (`src/lib/trace/mapping.ts`) extended with `getFieldByPath`. Plain field names (no dot) take the existing direct-property fast path; dotted names walk the object. Existing v1/v2 wizard mappings unchanged; new adapters can target nested fields without flattening their files first.
+- LabelRow gained an optional `tool_call_reviews` field (snake_case to match existing v1/v2 export naming). JSONL export round-trips it; CSV export drops it (CSV writer enumerates explicit fields).
