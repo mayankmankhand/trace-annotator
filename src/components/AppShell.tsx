@@ -44,6 +44,9 @@ function labelRowsToAnnotations(rows: LabelRow[]): Annotations {
       labeledAt: row.labeled_at,
       isEdited: false,
       skipped: false,
+      ...(row.tool_call_reviews
+        ? { toolCallReviews: row.tool_call_reviews }
+        : {}),
     };
   }
   return out;
@@ -104,6 +107,12 @@ export function AppShell() {
   if (phase.kind === "wizard") {
     return (
       <main className="min-h-screen flex flex-col items-center px-4 py-12">
+        {/*
+          Visually hidden h1 so the page has a level-one heading (axe
+          page-has-heading-one). The Logo wordmark is the visual title;
+          screen readers and SEO get the explicit heading.
+        */}
+        <h1 className="sr-only">Trace Annotator</h1>
         <div className="w-full max-w-2xl mb-8 flex flex-col items-center text-center gap-3">
           <Logo />
           <p className="text-gray-600 max-w-xl">
