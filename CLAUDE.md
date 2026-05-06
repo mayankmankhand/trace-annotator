@@ -130,7 +130,7 @@ Locked-in v1 visual and interaction choices. Apply consistently across new compo
 
 | Area | Decision |
 |---|---|
-| Layout | 75/25 split. Trace content fills the left 75% in a single centered column. The right 25% panel is the per-trace decision surface only: Pass / Fail / Skip / Previous / Next / Label-next. No left list sidebar. Session-level tools live in the top bar so they don't compete with verdict actions. |
+| Layout | 75/25 split. Trace content fills the left 75% in a single centered column. The right 25% panel is the per-trace decision surface: Pass / Fail / Skip, Failure mode tags + Note, Previous / Next / Label-next. No left list sidebar. Session-level tools live in the top bar so they don't compete with verdict actions. |
 | Top bar | Always visible. Left: logo + "Load new file". Center: "Trace X of Y" counter and "X of Y labeled" subline. Right: tools row carrying ? tips (when not active), Find (popover), Tags (count), Undo (count), Settings, save status, and Export. Find opens a popover combining filter, jump-to-#, and random sample. |
 | Bottom bar | Always visible. Carries quick-apply tag chips (top 4 most-recent) and keyboard hints (`P` Pass, `F` Fail, arrows Navigate, `Enter` Next, `N` Label next, `1-4` Tag). |
 | Density | Medium. Trace body fills ~70-80% of viewport height. No internal scrolling for typical chat turns. Metadata and "Show JSON" collapsed by default. |
