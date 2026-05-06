@@ -126,14 +126,15 @@ These come from established HCI practice and underpin every v1 feature. Preserve
 
 ## Design Decisions
 
-Locked-in visual and interaction choices for the "Quiet Notebook" system (v3.1, issue #53). Apply consistently across new components. Full rationale in [docs/ux-research-note.md](docs/ux-research-note.md) §10. Do not re-litigate these without amending the research note first.
+Locked-in visual and interaction choices for the "Quiet Notebook" system (v3.1 issue #53; v3.2 amendments issue #55). Apply consistently across new components. Full rationale in [docs/ux-research-note.md](docs/ux-research-note.md) §10 and §11. Do not re-litigate these without amending the research note first.
 
 | Area | Decision |
 |---|---|
-| Layout | 2-pane. Trace pane scrolls; 380px decision rail on the right is sticky. 46px top bar, 38px bottom bar. The rail is the per-trace decision surface (Verdict, Tags, Note, Coaching/Similar). Session-level tools live in the top bar. |
-| Top bar | Left: file/template chip. Center: progress bar + tabular `idx / total` + `X labeled`. Right: tools row (jump-to-next-unlabeled, Find, Tags, Export, Settings, Save status). Find opens a popover combining filter, jump-to-#, and random sample. |
-| Bottom bar | Prev / Next / counter, then Undo / Redo, save status, labeled count. Quick-apply tag chips are gone; the consolidated rail input replaces them. |
-| Density | Medium. Trace body fills the pane; no internal scrolling for typical chat turns. Metadata and raw JSON collapsed by default. |
+| Layout | 3-pane default (220px queue rail + flexible trace + 380px sticky decision rail). 46px top bar, 38px bottom bar. The queue is session navigation; the rail is the per-trace decision surface (Verdict, Tags, Note, Coaching/Similar); session-level tools collapse into a top-bar `⋯` overflow menu. 2-pane (no queue) is a narrow-viewport fallback. |
+| Queue rail | 220px left column. Per-row floor: status dot + title (wraps if long) + short id. Hover or active row reveals 1-2 truncated applied-tag chips; source and timestamp in tooltip. Inline session-scoped filter input at the top of the rail. Coexists with global `Ctrl K` Find (different jobs). Collapses to a 40px icon strip at 1024-1280px; hides behind a `≡` button below 1024px. Multi-select for batch labeling lives here (hover checkbox + shift-click range), with a contextual action bar appearing when items are selected. |
+| Top bar | Left: file/template chip. Center: progress bar + tabular `idx / total` + labeled count + percentage. Right: passive save-status indicator and a single `⋯` overflow menu containing Tags, Export, Settings, Undo, Redo. (Find / next-unlabeled absorbed by `Ctrl K` and the queue rail.) |
+| Bottom bar | Prev / Next only. Counter, undo/redo controls, save status, and labeled count moved into the top bar or absorbed by the queue. |
+| Density | Dense by default (v3.2; was Medium in v3.1). Trace body fills the pane; no internal scrolling for typical chat turns. Metadata and raw JSON collapsed by default. |
 | Theme | Light only. `--paper #faf8f4`, `--ink #1a1814`. No dark mode. |
 | Color tokens | All accents share chroma + lightness; only hue varies. `--accent` is muted teal-blue (oklch 0.55 0.09 220). `--pass` muted green (oklch 0.55 0.09 150). `--fail` muted red (oklch 0.55 0.13 30). `--warn` warm yellow (oklch 0.65 0.10 75). |
 | Typography | IBM Plex Sans for chrome (buttons, labels). Newsreader (serif) for trace prose, headlines, summary text. IBM Plex Mono for keys, IDs, metadata, scores. |

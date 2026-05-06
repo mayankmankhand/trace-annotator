@@ -253,3 +253,38 @@ Plan: [plans/PLAN-issue-53.md](../plans/PLAN-issue-53.md). Source: `Visual/Desig
 - Note edits debounce undo capture: a single before/after entry is pushed on blur, not on every keystroke. Without this, a single sentence flooded the undo stack and Cmd+Z was unusable.
 - `ExportButton` gained click-outside and Esc dismiss so the menu does not leak focus when the user clicks elsewhere.
 - `EmailRenderer` is kept (not in the handoff's first-class renderer table) but rebuilt on the new tokens. detect.ts continues to surface it on `From:/To:/Subject:` headers.
+
+## 11. v3.2 amendments (issue #55)
+
+Plan: [plans/PLAN-issue-55.md](../plans/PLAN-issue-55.md). Issue: [#55](https://github.com/mayankmankhand/Observability/issues/55).
+
+v3.2 changes three things on the labeling view: the workspace shape (three-pane queue rail becomes the default, replacing the v3.1 two-pane), the chrome (top and bottom bars trim down, a single ⋯ overflow menu absorbs session tools), and the right-rail readability (darker ink across headers, body, and helper text plus a subtle background tint that anchors each section). The unifying thesis is that three-pane was always the intended workspace and v3.2 finally ships it.
+
+### 11.1 Design decisions
+
+- **Three-pane is the new default workspace, not a variant footnote.** The v3.1 handoff (`Visual/Design Handoff.md` §2) listed three layout variants but called two-pane the default. The intended config was always three-pane + dense + coaching, but the handoff and shipped implementation both defaulted to two-pane. v3.2 promotes three-pane to default. The implementation hard-codes `data-layout="two"` and renders no queue rail, so this is genuinely shipping a missing feature rather than re-flipping a default. Two-pane remains as a narrow-viewport fallback (queue collapses to icons at 1024-1280px, hides at <1024px).
+
+- **Queue rail is session navigation; decision rail is per-trace decisions; top bar is session tools.** Three surfaces, three responsibilities. With the queue absorbing "where am I" and "what's left," the bottom bar shrinks to Prev / Next only and most top-bar buttons collapse into one overflow menu. This restores the role separation the v3.1 review (#49) tried to establish but could not complete without a navigation surface.
+
+- **Filter affordance splits into two jobs.** The queue rail's inline filter narrows the visible session ("filter what I'm scrolling through right now"); top-bar `Ctrl K` is global Find for jumping to anything (id, content, regex, cross-file). Two distinct jobs that previously fought for the same surface.
+
+- **Batch labeling moves into the queue, replacing `BatchPanel`.** Multi-select on a list is a recognition-over-recall pattern (Gmail, Finder, GitHub PR list, every spreadsheet). Hover-checkboxes + shift-click range + Esc clear + a contextual action bar at the bottom of the queue is what users already know. `BatchPanel` was a workaround for not having a queue; with one, it is redundant. At <1024px the queue is hidden, so batch is disabled there (mobile labeling is already deferred).
+
+- **Dense density becomes the default.** v3.1 shipped medium density. The intended config bundles dense + three-pane + coaching. Dense gives more reading-time per scroll; medium had visual breathing room that proved unnecessary once the rail and queue gave the trace pane its own dedicated column.
+
+- **Top-bar overflow menu uses `⋯` (kebab), not `≡` (hamburger).** Kebab is the universal "more actions" signal across web and mobile (Material guidelines, iOS HIG, GitHub, Gmail). Hamburger is reserved for primary navigation, which the narrow-viewport queue toggle already needs. Reusing `≡` for both creates ambiguity. The kebab lives at the far right of the top bar (Fitts's-law corner zone). Save status sits immediately left of the kebab as a small dot + text; passive status should be glanceable without opening the menu.
+
+- **Right rail readability tightened.** Headers, body text, and helper/placeholder text in the rail were too low-contrast against the warm-paper background. Darken the ink across all three; add a subtle background tint behind each `.lv-rail__section` so headers feel anchored on a surface.
+
+### 11.2 Implementation fixes
+
+What landed alongside the design decisions above:
+
+- Wired `data-layout` to a Settings preference (default `three`); the previous hard-coded `"two"` is gone. Density flipped to `dense` by default with a Settings escape hatch.
+- Ported the queue rail JSX into `TraceView.tsx` as a `QueueRail` component with hover-checkbox multi-select, shift-click range selection, an inline session filter, an active-row scroll-into-view effect, and a contextual `QueueActionBar` at the bottom when 1+ rows are selected.
+- Deleted `BatchPanel.tsx`. The queue absorbs multi-select; the bulk-verdict overwrite ConfirmDialog still gates blast-radius cases.
+- Stripped the bottom bar to centered Prev / Next. Counter, undo/redo buttons, save status, and labeled count moved into the top bar's progress strip and the new ⋯ kebab menu.
+- Added the `≡` queue-toggle button (top-bar left edge, only visible <1024px) plus the slide-over drawer behavior for the queue at narrow viewports.
+- Removed the time-remaining estimator chip after manual feedback that it added noise without orienting the reviewer; the audit log itself is unchanged.
+
+Open follow-ups for a later PR (called out in the post-launch review): kebab arrow-key navigation, drawer dialog semantics (focus trap + aria-modal), `<main>` landmark on the trace pane, and CSS hygiene for the `.lv-batch*` and `.lv-bottombar__*` rules orphaned by component deletions.

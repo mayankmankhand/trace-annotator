@@ -66,14 +66,23 @@ Load via Google Fonts. Trace content always renders in the serif so reading the 
 
 ## 2. Layout invariants
 
-The labeling view is where 99% of session time lives. **These never move:**
+The labeling view is where 99% of session time lives. **The default workspace is three-pane + dense density + coaching on.** These never move:
 
-- **Top bar** (46px): file/template, progress bar, jump-to-next-unlabeled, find, manage tags, export, settings.
-- **Trace pane** (left, scrolls independently). Header pinned at top with id + title + source. Foot prints a small "end of trace" marker.
-- **Decision rail** (right, 380px, sticky). Verdict → Tags → Note → Coaching/Similar. Never scrolls out of view.
-- **Bottom bar** (38px): Prev / Next / counter / undo-redo hints / save status / labeled count.
+- **Top bar** (46px): file/template chip, progress bar with tabular `idx / total`, labeled count, percentage. Session-level tools (Tags, Export, Settings, Undo/Redo, save status) collapse into a single overflow menu (`⋯`) on the far right.
+- **Queue rail** (left, 220px, scrolls independently). Per-row floor: status dot (open/pass/fail/skip) + title (wraps if long) + short id. On hover or active row: 1-2 truncated applied-tag chips; source and timestamp on tooltip. (The status dot already encodes verdict; a separate glyph would double the signal without adding info.) Inline filter input at the top of the rail, scoped to the current session.
+- **Trace pane** (center, scrolls independently). Header pinned at top with id + title + source. Foot prints a small "end of trace" marker.
+- **Decision rail** (right, 380px, sticky). Verdict → Tags → Note → Coaching/Similar. Never scrolls out of view; never collapses.
+- **Bottom bar** (38px): Prev / Next only. Counter, undo/redo, save status, and labeled count facts live in the top bar (overflow menu) and the queue.
 
-Layout variants supported via `data-layout="one|two|three"` on `.labeling-view`. Default is `two`. Three-pane adds a 220px queue list on the left.
+Layout variants via `data-layout="one|two|three"` on `.labeling-view`. **Default is `three`.** Two-pane and one-pane exist as narrow-viewport fallbacks:
+
+- **≥1280px:** full three-pane.
+- **1024-1280px:** queue collapses to a 40px icon strip (status dots only; arrow keys step through, click any dot to jump).
+- **<1024px:** queue hidden; reachable via a `≡` button in the top bar that slide-overs the full list.
+
+The decision rail never collapses; losing verdict / tag / note breaks the throughput claim.
+
+**Filter affordance.** Rail filter narrows the visible queue ("filter this session"). Top-bar `Ctrl K` opens global Find for jumping to anything (id, content, regex). Two distinct jobs.
 
 **Long-trace rule:** rail is `position` independent; the trace pane scrolls. A 30-turn agent trace must never bury the verdict / tag input / note.
 

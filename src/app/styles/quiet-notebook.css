@@ -35,9 +35,18 @@
   --pad: 20px;
 }
 
+/* Density "dense" trims interior padding on the labeling-view's main
+ * surfaces so a single trace fits more text per screen. The medium
+ * default keeps comfortable breathing room around chat turns and
+ * metadata; dense is for power reviewers who'd rather scroll less. */
 .density-dense {
   --pad: 14px;
 }
+.labeling-view.density-dense .lv-trace__head { padding: 14px 24px 10px; }
+.labeling-view.density-dense .lv-trace__body { padding: 0 24px 24px; }
+.labeling-view.density-dense .lv-trace__foot { padding: 10px 24px 12px; }
+.labeling-view.density-dense .lv-rail__section { padding: 12px 14px; }
+.labeling-view.density-dense .lv-leftnav__item { padding: 6px 12px; }
 
 * { box-sizing: border-box; }
 

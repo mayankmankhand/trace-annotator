@@ -459,6 +459,64 @@ export function saveMode(mode: Mode): void {
   }
 }
 
+// Layout preference (issue #55). Picks the workspace shape:
+//   - "three"  220px queue rail + trace + 380px decision rail (default).
+//   - "two"    no queue; trace + decision rail (narrow-viewport fallback).
+//   - "one"    trace only; for embedded contexts. CSS already supports it.
+// The default flipped from "two" (v3.1) to "three" (v3.2) because the
+// queue is the new home for session navigation and multi-select. See
+// docs/ux-research-note.md §11 for the rationale.
+export type LayoutPreference = "one" | "two" | "three";
+const LAYOUT_KEY = "ta:layout:v1";
+
+export function loadLayoutPreference(): LayoutPreference {
+  if (typeof window === "undefined") return "three";
+  try {
+    const raw = localStorage.getItem(LAYOUT_KEY);
+    if (raw === "one" || raw === "two" || raw === "three") return raw;
+    return "three";
+  } catch {
+    return "three";
+  }
+}
+
+export function saveLayoutPreference(layout: LayoutPreference): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(LAYOUT_KEY, layout);
+  } catch {
+    // No-op; layout is a UX preference, not data.
+  }
+}
+
+// Density preference (issue #55). v3.1 shipped "medium"; v3.2 flips the
+// default to "dense" because the queue rail and decision rail give the
+// trace pane its own column and the medium-density breathing room is no
+// longer needed. The DOM contract is `density-dense` class on the root
+// labeling-view; absent class means medium.
+export type DensityPreference = "medium" | "dense";
+const DENSITY_KEY = "ta:density:v1";
+
+export function loadDensityPreference(): DensityPreference {
+  if (typeof window === "undefined") return "dense";
+  try {
+    const raw = localStorage.getItem(DENSITY_KEY);
+    if (raw === "medium" || raw === "dense") return raw;
+    return "dense";
+  } catch {
+    return "dense";
+  }
+}
+
+export function saveDensityPreference(density: DensityPreference): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(DENSITY_KEY, density);
+  } catch {
+    // No-op; density is a UX preference, not data.
+  }
+}
+
 // Coaching enabled flag (issue #53). Independent of the experienced-mode
 // toggle: a beginner can hide tips, an experienced reviewer can keep them
 // on. Default true so first-run users see the welcome arc. Stored in
