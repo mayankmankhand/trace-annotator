@@ -1,6 +1,6 @@
 # Issue #53 - "Quiet Notebook" UI Modernization
 
-**Overall Progress:** `90%`
+**Overall Progress:** `100%` (PR #54 open)
 
 ## TLDR
 
@@ -105,4 +105,27 @@ Restyle the Trace Annotator end-to-end to match `Visual/Design Handoff.md`. New 
 
 ## Outcomes
 
-<!-- Filled in after execution. -->
+Shipped as PR #54 against main, branch `issue-53-quiet-notebook`, single release.
+
+### What landed
+- All 9 plan steps completed; full restyle to Quiet Notebook tokens.
+- Three new renderers (Rag, Agent, Summarizer) plus retoned existing ones.
+- Tag surface consolidated 4 to 1: single input + 9-chip cloud with `1`-`9` hotkey badges. Recent strip, bottom-bar quick-apply chips, and datalist autocomplete removed.
+- Hotkey map expanded to P/F/S, T, U, 1-9, arrows, Ctrl+K, Ctrl+Z, Ctrl+Shift+Z, Esc.
+- Coaching decoupled from the experienced-mode toggle. Two independent settings.
+- `Annotation.skipped` now serialized through `LabelRow` so skip survives reload.
+- `Ctrl+Shift+Z` redo added; redo no longer drops skip-only or tool-call-only annotations.
+- Full-bleed-style sheets for Settings and Tag management; no popups over labeling work.
+
+### Reviews run
+- `/review code+ux+plan` first pass: 1 Block (redo skip-loss), 17 Warns, 18 Suggests across all three specialists. All blocks fixed, all warns fixed or resolved as docs/plan-wording corrections.
+- Second-pass review against the fix commit: 0 Blocks, 3 Warns (dead BottomBar prop, stale comment, JSDoc), 2 Suggests. All addressed.
+- review-browser deferred: no headless browser in the remote env. Noted in the PR body.
+
+### Plan-doc deviation flagged
+- Step 6 said "Update `lib/config/types.ts`" - the flag actually lives in `lib/storage.ts` (which already owned the other persistence flags). Functional outcome correct; plan task wording was slightly off.
+
+### Build / lint
+- `npm run build` clean.
+- `npm run lint` zero warnings.
+- Em/en dash sweep across `src/`, `docs/`, `CLAUDE.md`, `plans/PLAN-issue-53.md`: clean.
