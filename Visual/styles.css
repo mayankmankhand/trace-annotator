@@ -1,0 +1,264 @@
+/* Trace Annotator — shared styles
+   System: warm off-white "paper" background, near-black ink, single
+   muted-teal accent. IBM Plex Sans for UI, Plex Mono for keys/metadata,
+   Newsreader for trace prose where reading matters. */
+
+:root {
+  --paper: #faf8f4;
+  --paper-2: #f3efe7;
+  --paper-3: #ece7dc;
+  --rule: #e3ddd0;
+  --rule-2: #d6cfbe;
+  --ink: #1a1814;
+  --ink-2: #4a4640;
+  --ink-3: #807a70;
+  --ink-4: #b3ad9f;
+
+  --accent: oklch(0.55 0.09 220);   /* muted teal-blue */
+  --accent-soft: oklch(0.93 0.03 220);
+  --accent-ink: oklch(0.32 0.07 220);
+
+  --pass: oklch(0.55 0.09 150);
+  --pass-soft: oklch(0.94 0.04 150);
+  --fail: oklch(0.55 0.13 30);
+  --fail-soft: oklch(0.94 0.05 30);
+  --warn: oklch(0.65 0.10 75);
+
+  --sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --serif: "Newsreader", "Iowan Old Style", Georgia, serif;
+
+  --r-sm: 4px;
+  --r-md: 6px;
+  --r-lg: 10px;
+
+  --pad: 20px;
+}
+
+.density-dense {
+  --pad: 14px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: var(--sans);
+  color: var(--ink);
+  background: var(--paper);
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+
+kbd {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--paper-3);
+  color: var(--ink-2);
+  border: 1px solid var(--rule);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  line-height: 1.4;
+  display: inline-block;
+}
+
+/* ───── shared atoms ───── */
+
+.ta-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px 3px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  background: var(--paper-2);
+  color: var(--ink-2);
+  border: 1px solid var(--rule);
+  white-space: nowrap;
+  font-family: var(--mono);
+  font-feature-settings: "ss01";
+}
+
+.ta-chip--applied {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  border-color: color-mix(in oklab, var(--accent) 30%, transparent);
+}
+
+.ta-chip--applied .ta-chip__x {
+  opacity: 0.5;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  margin-right: -2px;
+}
+
+.ta-chip--applied .ta-chip__x:hover { opacity: 1; }
+
+.ta-chip__count {
+  font-size: 10.5px;
+  color: var(--ink-4);
+  margin-left: 1px;
+}
+
+.ta-iconbtn {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+  padding: 5px 7px;
+  border-radius: var(--r-sm);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  transition: background .12s, border-color .12s;
+}
+
+.ta-iconbtn:hover {
+  background: var(--paper-2);
+  border-color: var(--rule);
+}
+
+.ta-iconbtn--ghost { color: var(--ink-3); }
+
+/* ───── role pills ───── */
+
+.role-pill {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+.role-pill[data-role="user"]      { background: #e9e5db; color: #4a4640; }
+.role-pill[data-role="assistant"] { background: var(--accent-soft); color: var(--accent-ink); }
+.role-pill[data-role="system"]    { background: #efeae0; color: var(--ink-3); }
+.role-pill[data-role="tool"]      { background: oklch(0.92 0.04 75); color: oklch(0.4 0.07 75); }
+
+/* ───── verdict buttons ───── */
+
+.verdict-btn {
+  flex: 1;
+  padding: 10px 12px;
+  border: 1px solid var(--rule);
+  background: var(--paper);
+  border-radius: var(--r-md);
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-2);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: background .12s, border-color .12s, color .12s, box-shadow .12s;
+}
+
+.verdict-btn:hover { background: var(--paper-2); }
+
+.verdict-btn[data-active="pass"]  { background: var(--pass-soft); border-color: color-mix(in oklab, var(--pass) 40%, transparent); color: oklch(0.32 0.06 150); }
+.verdict-btn[data-active="fail"]  { background: var(--fail-soft); border-color: color-mix(in oklab, var(--fail) 40%, transparent); color: oklch(0.32 0.10 30); }
+.verdict-btn[data-active="skip"]  { background: var(--paper-3); border-color: var(--rule-2); color: var(--ink-2); }
+
+.verdict-btn .kbd-hint {
+  margin-left: auto;
+  opacity: 0.55;
+  font-family: var(--mono);
+  font-size: 10.5px;
+}
+
+/* ───── progress ───── */
+
+.progress-bar {
+  height: 3px;
+  background: var(--paper-3);
+  border-radius: 999px;
+  overflow: hidden;
+  position: relative;
+}
+
+.progress-bar__fill {
+  position: absolute;
+  inset: 0;
+  background: var(--ink-2);
+  transform-origin: left;
+}
+
+.progress-bar__skip {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--ink-4);
+  opacity: 0.6;
+}
+
+/* ───── panel scroll ───── */
+
+.scroll-y {
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--rule-2) transparent;
+}
+
+.scroll-y::-webkit-scrollbar { width: 8px; }
+.scroll-y::-webkit-scrollbar-thumb { background: var(--rule-2); border-radius: 4px; }
+.scroll-y::-webkit-scrollbar-track { background: transparent; }
+
+/* ───── coaching card ───── */
+
+.coach-card {
+  background: oklch(0.97 0.02 75);
+  border: 1px solid oklch(0.85 0.05 75);
+  border-radius: var(--r-md);
+  padding: 12px 14px;
+  font-size: 12.5px;
+  color: oklch(0.32 0.05 75);
+  line-height: 1.45;
+}
+
+.coach-card .coach-card__title {
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+  color: oklch(0.45 0.08 75);
+}
+
+.coach-card .coach-card__dismiss {
+  background: transparent;
+  border: 0;
+  color: oklch(0.45 0.08 75);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 0;
+  margin-top: 6px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  opacity: 0.7;
+}
+
+/* ───── ascii rule (lab notebook detail) ───── */
+
+.ta-rule {
+  border: 0;
+  border-top: 1px solid var(--rule);
+  margin: 0;
+}
+
+.ta-rule--dotted {
+  border-top: 1px dotted var(--rule-2);
+}
