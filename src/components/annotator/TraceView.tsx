@@ -1240,13 +1240,6 @@ export function TraceView({
             )}
 
             <TraceRenderer trace={trace} collapseSystem />
-
-            <TagPanel
-              annotation={annotation}
-              allTags={allTags}
-              onUpdate={updateAnnotation}
-              onTagCreated={addTagToSession}
-            />
           </div>
         </main>
 
@@ -1297,6 +1290,13 @@ export function TraceView({
               </button>
             </div>
           </div>
+
+          <TagPanel
+            annotation={annotation}
+            allTags={allTags}
+            onUpdate={updateAnnotation}
+            onTagCreated={addTagToSession}
+          />
 
           {mode === "experienced" && toolCalls.length > 0 && (
             <ToolCallReviewPanel

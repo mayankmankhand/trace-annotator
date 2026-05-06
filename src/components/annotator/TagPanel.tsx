@@ -51,14 +51,14 @@ export function TagPanel({ annotation, allTags, onUpdate, onTagCreated }: Props)
   }
 
   return (
-    <div className="mt-6 space-y-3 border-t pt-5">
-      <div className="flex items-start gap-3">
-        <div className="flex-1 space-y-2">
-          <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide">
-            Failure mode tags
-          </label>
+    <>
+      <div>
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
+          Failure mode tags
+        </h3>
+        <div className="space-y-2">
           {annotation.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mb-2">
+            <div className="flex flex-wrap gap-1.5">
               {annotation.tags.map((tag) => (
                 <span
                   key={tag}
@@ -69,7 +69,7 @@ export function TagPanel({ annotation, allTags, onUpdate, onTagCreated }: Props)
                     type="button"
                     onClick={() => removeTag(tag)}
                     aria-label={`Remove tag: ${tag}`}
-                    className="ml-0.5 text-violet-500 hover:text-violet-800 focus-visible:outline-none"
+                    className="ml-0.5 rounded text-violet-500 hover:text-violet-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
                   >
                     &times;
                   </button>
@@ -86,6 +86,7 @@ export function TagPanel({ annotation, allTags, onUpdate, onTagCreated }: Props)
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Type a failure mode and press Enter..."
+              aria-describedby="tag-input-help"
               className="flex-1 rounded border border-gray-300 px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
             />
             <button
@@ -96,12 +97,12 @@ export function TagPanel({ annotation, allTags, onUpdate, onTagCreated }: Props)
             >
               Add
             </button>
-            <datalist id="tag-suggestions">
-              {allTags.map((t) => (
-                <option key={t} value={t} />
-              ))}
-            </datalist>
           </div>
+          <datalist id="tag-suggestions">
+            {allTags.map((t) => (
+              <option key={t} value={t} />
+            ))}
+          </datalist>
           <RecentTagsStrip
             allTags={allTags}
             currentTags={annotation.tags}
@@ -117,10 +118,10 @@ export function TagPanel({ annotation, allTags, onUpdate, onTagCreated }: Props)
       </div>
 
       <div>
-        <label
-          htmlFor="trace-note"
-          className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1"
-        >
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
+          Note
+        </h3>
+        <label htmlFor="trace-note" className="sr-only">
           Note
         </label>
         <textarea
@@ -132,7 +133,7 @@ export function TagPanel({ annotation, allTags, onUpdate, onTagCreated }: Props)
           className="w-full rounded border border-gray-300 px-3 py-2 text-sm resize-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
         />
       </div>
-    </div>
+    </>
   );
 }
 
@@ -148,7 +149,7 @@ function ExampleTagsStrip({
   onApply: (tag: string) => void;
 }) {
   return (
-    <div className="mt-2">
+    <div>
       <p className="text-xs text-gray-500 mb-1">
         Examples for your app type - click to use, or write your own:
       </p>
@@ -182,14 +183,13 @@ function RecentTagsStrip({
 }) {
   if (allTags.length === 0) {
     return (
-      <p className="text-xs text-gray-500 mt-1">
-        No tags yet. Type one above and press Enter. Tags you create will show up
-        here for one-click reuse.
+      <p id="tag-input-help" className="text-xs text-gray-500">
+        Tags you create will appear here for one-click reuse.
       </p>
     );
   }
   return (
-    <div className="mt-2">
+    <div>
       <p className="text-xs text-gray-500 mb-1">Recent tags - click to apply:</p>
       <div className="flex flex-wrap gap-1.5">
         {allTags.map((tag) => {
