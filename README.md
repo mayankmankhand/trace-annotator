@@ -66,13 +66,19 @@ The judgment calls behind this tool are documented, not hand-waved. Each link be
 
 ## What v3.0 includes
 
-For everyone: the full v1/v2.x labeling loop (wizard, keyboard labeling, coaching arc, undo, tag management, autosave, JSONL/CSV export), a "X traces left, ~Y min remaining" estimate, and an "I'm experienced" toggle in Settings.
+For everyone: the full v1/v2.x labeling loop (wizard, keyboard labeling, coaching arc, undo, tag management, autosave, JSONL/CSV export) and an "I'm experienced" toggle in Settings.
 
 For experienced practitioners (after the toggle): batch labeling with one-click batch undo; a custom JSON adapter so the wizard skips its mapping step on saved file shapes; tool-call review (Right / Wrong / Skip per call, informational only); and similarity highlighting via TF-IDF + cosine.
 
 <!-- screenshot: experienced-batch -->
 
 Full v3.0 change list in [RELEASE-NOTES-v3.0.md](./RELEASE-NOTES-v3.0.md).
+
+## What v3.1 / v3.2 add
+
+**v3.1 (Quiet Notebook):** restyle to a warm-paper / muted-teal design system, with Newsreader serif for trace prose and a single consolidated tag input with `1`-`9` quick-apply hotkeys. Three new renderers (RAG, agent, summarizer). See [issue #53](https://github.com/mayankmankhand/Observability/issues/53).
+
+**v3.2 (three-pane workspace):** the default workspace becomes a 220px queue rail (left) plus the trace pane (center) plus the 380px sticky decision rail (right). Multi-select for batch labeling moves into the queue (hover checkbox + shift-click range; contextual action bar at the bottom). The top bar slims to file/template/progress plus a single ⋯ overflow menu for Find, Tags, Export, Undo/Redo, Settings, and Jump to next unlabeled. The bottom bar shrinks to centered Prev / Next. Right-rail headers and helper text get a contrast bump. Queue collapses to a 40px icon strip below 1280px and into a slide-over drawer below 1024px. See [issue #55](https://github.com/mayankmankhand/Observability/issues/55).
 
 ## Install
 
@@ -100,7 +106,7 @@ Three releases, each shaped by an explicit explore -> plan -> execute -> review 
 
 ## Roadmap
 
-- **v3.1:** code-based custom adapter (write a TypeScript file in the repo instead of a JSON object). SQLite storage backend if v3.0 IndexedDB hits scale limits.
+- **v3.3 candidates:** drawer dialog semantics (focus trap + `aria-modal`), kebab roving-tabindex / arrow-key navigation, `<main>` landmark on the trace pane, code-based custom adapter (write a TypeScript file in the repo instead of a JSON object), and SQLite storage backend if IndexedDB hits scale limits.
 - **v4+:** open. Deliberately not building bridges to other eval platforms (Braintrust, LangSmith, Phoenix). The intent is "stay and grow inside Trace Annotator."
 
 ## License

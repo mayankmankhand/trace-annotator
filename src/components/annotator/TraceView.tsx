@@ -40,18 +40,23 @@ import {
   clearAdapter,
   loadAdapter,
   loadCoachingEnabled,
+  loadDensityPreference,
   loadHotkeys,
+  loadLayoutPreference,
   loadMode,
-  loadRecentAuditEntries,
   saveAdapter,
   saveCoachingEnabled,
+  saveDensityPreference,
   saveHotkeys,
   saveLabels,
+  saveLayoutPreference,
   saveMode,
   saveSessionState,
   type AuditEntry,
   type AdapterRecord,
+  type DensityPreference,
   type Hotkeys,
+  type LayoutPreference,
   type Mode,
   DEFAULT_HOTKEYS,
 } from "@/lib/storage";
@@ -60,11 +65,6 @@ import {
   parseAdapterDSL,
 } from "@/lib/trace/adapter-dsl";
 import { ConfirmDialog } from "@/components/ui/Dialog";
-import { BatchPanel } from "./BatchPanel";
-import {
-  estimateSecondsRemaining,
-  formatRemaining,
-} from "@/lib/time-estimate";
 
 export type Verdict = "pass" | "fail";
 export type Annotation = {
@@ -139,6 +139,45 @@ function isEmptyAnnotation(a: Annotation): boolean {
 
 function getOrEmpty(annotations: Annotations, id: string): Annotation {
   return annotations[id] ?? EMPTY_ANNOTATION;
+}
+
+// Pull a human title for a trace. Wizard files often don't carry a
+// `metadata.title`, so the queue would otherwise show only the trace id.
+// We fall back through the natural conversational signals:
+//   1. metadata.title           (explicit)
+//   2. metadata.query / question / prompt   (RAG-style)
+//   3. first user message in `input`        (chat / agent)
+//   4. first input message of any role      (summarizer / generic)
+//   5. trace id                              (last resort)
+// Strings are collapsed to one line and truncated so very long messages
+// don't blow out the queue layout.
+function deriveTraceTitle(trace: Trace): string {
+  const meta = (trace.metadata as Record<string, unknown> | undefined) ?? undefined;
+  const metaTitle =
+    pickString(meta?.title) ??
+    pickString(meta?.query) ??
+    pickString(meta?.question) ??
+    pickString(meta?.prompt);
+  if (metaTitle) return collapseAndTruncate(metaTitle);
+
+  const firstUser = trace.input.find((m) => m.role === "user");
+  if (firstUser?.content) return collapseAndTruncate(firstUser.content);
+
+  const firstAny = trace.input[0];
+  if (firstAny?.content) return collapseAndTruncate(firstAny.content);
+
+  return trace.id;
+}
+
+function pickString(v: unknown): string | null {
+  if (typeof v !== "string") return null;
+  const trimmed = v.trim();
+  return trimmed === "" ? null : trimmed;
+}
+
+function collapseAndTruncate(s: string, max = 110): string {
+  const oneLine = s.replace(/\s+/g, " ").trim();
+  return oneLine.length > max ? `${oneLine.slice(0, max - 1)}…` : oneLine;
 }
 
 function templateLabelForTrace(trace: Trace): string {
@@ -237,10 +276,21 @@ export function TraceView({
   useEffect(() => {
     setMode(loadMode());
   }, []);
-  const [auditRecent, setAuditRecent] = useState<AuditEntry[]>([]);
-  const [auditWriteCount, setAuditWriteCount] = useState(0);
-  const bumpAuditWrites = useCallback(() => {
-    setAuditWriteCount((c) => c + 1);
+  // Layout + density preferences (issue #55). The defaults are "three" and
+  // "dense"; we initialise pessimistically to keep SSR/hydration stable and
+  // overwrite from localStorage in an effect, matching the loadHotkeys /
+  // loadMode patterns above.
+  const [layout, setLayout] = useState<LayoutPreference>("three");
+  const [density, setDensity] = useState<DensityPreference>("dense");
+  // Slide-over drawer state for the queue rail at narrow viewports.
+  // Only consulted when CSS hides the inline queue (<1024px); above
+  // that breakpoint the inline queue is always visible. Toggling here
+  // doesn't need a media-query check because the toggle button is
+  // itself hidden via CSS on wide viewports.
+  const [queueDrawerOpen, setQueueDrawerOpen] = useState(false);
+  useEffect(() => {
+    setLayout(loadLayoutPreference());
+    setDensity(loadDensityPreference());
   }, []);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [pendingBulkVerdict, setPendingBulkVerdict] = useState<{
@@ -323,26 +373,6 @@ export function TraceView({
   const hiddenSuggestionCount = Math.max(
     0,
     matchingTags.length - visibleTagSuggestions.length,
-  );
-
-  useEffect(() => {
-    let cancelled = false;
-    loadRecentAuditEntries(fingerprint, 25)
-      .then((entries) => {
-        if (!cancelled) setAuditRecent(entries);
-      })
-      .catch(() => {
-        // Storage unavailable; the existing storageUnavailable banner
-        // already tells the user. The estimator subline simply hides.
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [fingerprint, auditWriteCount]);
-  const remainingSeconds = estimateSecondsRemaining(
-    auditRecent,
-    total,
-    labeledCount,
   );
 
   const matchesFilter = useCallback(
@@ -442,9 +472,8 @@ export function TraceView({
         before: isEmptyAnnotation(before) ? null : annotationToRow(trace_id, before),
         after: isEmptyAnnotation(after) ? null : annotationToRow(trace_id, after),
       }).catch(() => {});
-      bumpAuditWrites();
     },
-    [fingerprint, bumpAuditWrites],
+    [fingerprint],
   );
 
   const applyVerdict = useCallback(
@@ -474,29 +503,22 @@ export function TraceView({
     });
   }, []);
 
+  // Union-add for shift-click range selection in the queue rail. Unlike
+  // toggleSelected, this only adds; ids already in the selection stay
+  // selected. The queue tracks its own anchor index, so the caller hands
+  // us the precomputed range as a list.
+  const selectMany = useCallback((traceIds: string[]) => {
+    if (traceIds.length === 0) return;
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      for (const id of traceIds) next.add(id);
+      return next;
+    });
+  }, []);
+
   const clearSelection = useCallback(() => {
     setSelectedIds(new Set());
   }, []);
-
-  const selectAllMatching = useCallback(() => {
-    const ids = new Set<string>();
-    const anns = annotationsRef.current;
-    for (let i = 0; i < total; i++) {
-      if (matchesFilter(i, anns)) ids.add(traces[i].id);
-    }
-    setSelectedIds(ids);
-  }, [total, traces, matchesFilter, annotationsRef]);
-
-  // Memoized: O(total) on every keystroke became visible on 1k-trace
-  // files. Only recompute when traces, annotations, or the filter
-  // actually change.
-  const matchingCount = useMemo(() => {
-    let count = 0;
-    for (let i = 0; i < total; i++) {
-      if (matchesFilter(i, annotations)) count++;
-    }
-    return count;
-  }, [total, annotations, matchesFilter]);
 
   function generateBatchId(): string {
     if (
@@ -548,9 +570,8 @@ export function TraceView({
       redoStackRef.current = [];
       setRedoCount(0);
       appendAuditEntriesBatch(auditEntries).catch(() => {});
-      bumpAuditWrites();
     },
-    [fingerprint, selectedIds, setAnnotations, annotationsRef, bumpAuditWrites],
+    [fingerprint, selectedIds, setAnnotations, annotationsRef],
   );
 
   const applyBatchVerdict = useCallback(
@@ -739,7 +760,6 @@ export function TraceView({
       redoStackRef.current = [];
       setRedoCount(0);
       appendAuditEntriesBatch(auditEntries).catch(() => {});
-      bumpAuditWrites();
     },
     [
       fingerprint,
@@ -747,7 +767,6 @@ export function TraceView({
       addTagToSession,
       setAnnotations,
       annotationsRef,
-      bumpAuditWrites,
     ],
   );
 
@@ -1052,7 +1071,10 @@ export function TraceView({
   }, [milestone, allTags, tagCounts]);
 
   return (
-    <div className="labeling-view" data-layout="two">
+    <div
+      className={`labeling-view${density === "dense" ? " density-dense" : ""}`}
+      data-layout={layout}
+    >
       <TopBar
         filename={filename}
         templateLabel={templateLabelForTrace(trace)}
@@ -1063,15 +1085,16 @@ export function TraceView({
         failCount={failCount}
         skippedCount={skippedCount}
         labeledPct={labeledPct}
-        unlabeledCount={unlabeledCount}
         coachingEnabled={coachingEnabled}
         coachingActive={coachingActive}
         tipsChipDismissed={tipsChipDismissed}
-        remainingSeconds={remainingSeconds}
         allTagsCount={allTags.length}
         findOpen={findOpen}
         filter={filter}
         allTags={allTags}
+        undoCount={undoCount}
+        redoCount={redoCount}
+        unlabeledCount={unlabeledCount}
         onJumpUnlabeled={() => jumpToNextUnlabeled(index, annotationsRef.current)}
         onOpenFind={() => setFindOpen(true)}
         onCloseFind={() => setFindOpen(false)}
@@ -1081,6 +1104,8 @@ export function TraceView({
         onOpenTags={() => setTagPanelOpen(true)}
         onOpenSettings={() => setSettingsOpen(true)}
         onExport={handleExport}
+        onUndo={undoCount > 0 ? undo : undefined}
+        onRedo={redoCount > 0 ? redo : undefined}
         onReset={onReset}
         onResetCoaching={() => {
           resetCoaching();
@@ -1093,16 +1118,36 @@ export function TraceView({
         }}
         saveStatus={saveStatus}
         modeIsExperienced={mode === "experienced"}
+        layoutIsThree={layout === "three"}
+        onToggleQueueDrawer={() => setQueueDrawerOpen((v) => !v)}
       />
 
       <div className="lv-body">
+        {layout === "three" && (
+          <QueueRail
+            traces={traces}
+            annotations={annotations}
+            activeIndex={index}
+            selectedIds={selectedIds}
+            allTags={allTags}
+            drawerOpen={queueDrawerOpen}
+            onJump={(i) => {
+              setIndex(i);
+              setQueueDrawerOpen(false);
+            }}
+            onToggleSelected={toggleSelected}
+            onSelectMany={selectMany}
+            onClearSelection={clearSelection}
+            onApplyBatchVerdict={applyBatchVerdict}
+            onApplyBatchTag={applyBatchTag}
+            onCloseDrawer={() => setQueueDrawerOpen(false)}
+          />
+        )}
         <div className="lv-trace scroll-y">
           <div className="lv-trace__head">
             <div className="lv-trace__headRow">
               <span className="lv-trace__id">{trace.id}</span>
-              <h2 className="lv-trace__title">
-                {String((trace.metadata as Record<string, unknown> | undefined)?.title ?? trace.id)}
-              </h2>
+              <h2 className="lv-trace__title">{deriveTraceTitle(trace)}</h2>
               {annotation.isEdited && (
                 <span className="ta-chip lv-trace__editedChip">edited</span>
               )}
@@ -1124,16 +1169,6 @@ export function TraceView({
                   {annotation.verdict}
                 </span>
               )}
-              {mode === "experienced" && (
-                <label className="lv-trace__selectLabel">
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.has(trace.id)}
-                    onChange={() => toggleSelected(trace.id)}
-                  />
-                  select for batch
-                </label>
-              )}
             </div>
             <div className="lv-trace__source">{filename}</div>
           </div>
@@ -1149,26 +1184,6 @@ export function TraceView({
         </div>
 
         <aside aria-label="Decision rail" className="lv-rail">
-          {mode === "experienced" && selectedIds.size > 0 && (
-            <div className="lv-rail__section">
-              <BatchPanel
-                selectedCount={selectedIds.size}
-                allTags={allTags}
-                onApplyVerdict={applyBatchVerdict}
-                onApplyTag={applyBatchTag}
-                onClear={clearSelection}
-              />
-              {matchingCount > 1 && (
-                <button
-                  type="button"
-                  onClick={selectAllMatching}
-                  className="lv-rail__inlineLink"
-                >
-                  select all matching ({matchingCount})
-                </button>
-              )}
-            </div>
-          )}
 
           <div className="lv-rail__section">
             <div className="lv-rail__label">verdict</div>
@@ -1387,18 +1402,10 @@ export function TraceView({
       </div>
 
       <BottomBar
-        idx={index}
-        total={total}
-        labeledCount={labeledCount}
         canPrev={index > 0}
         canNext={index < total - 1}
-        undoCount={undoCount}
-        redoCount={redoCount}
-        saveStatus={saveStatus}
         onPrev={() => go(-1)}
         onNext={() => go(1)}
-        onUndo={undoCount > 0 ? undo : undefined}
-        onRedo={redoCount > 0 ? redo : undefined}
       />
 
       <TagManagementPanel
@@ -1414,6 +1421,8 @@ export function TraceView({
         hotkeys={hotkeys}
         mode={mode}
         coachingEnabled={coachingEnabled}
+        layout={layout}
+        density={density}
         onClose={() => setSettingsOpen(false)}
         onChange={(next) => {
           setHotkeys(next);
@@ -1422,6 +1431,14 @@ export function TraceView({
         onModeChange={(next) => {
           setMode(next);
           saveMode(next);
+        }}
+        onLayoutChange={(next) => {
+          setLayout(next);
+          saveLayoutPreference(next);
+        }}
+        onDensityChange={(next) => {
+          setDensity(next);
+          saveDensityPreference(next);
         }}
         onCoachingChange={(next) => {
           setCoachingEnabled(next);
@@ -1487,15 +1504,16 @@ function TopBar(props: {
   failCount: number;
   skippedCount: number;
   labeledPct: number;
-  unlabeledCount: number;
   coachingEnabled: boolean;
   coachingActive: boolean;
   tipsChipDismissed: boolean;
-  remainingSeconds: number | null;
   allTagsCount: number;
   findOpen: boolean;
   filter: Filter;
   allTags: string[];
+  undoCount: number;
+  redoCount: number;
+  unlabeledCount: number;
   onJumpUnlabeled: () => void;
   onOpenFind: () => void;
   onCloseFind: () => void;
@@ -1505,11 +1523,15 @@ function TopBar(props: {
   onOpenTags: () => void;
   onOpenSettings: () => void;
   onExport: (fmt: "jsonl" | "csv") => void;
+  onUndo?: () => void;
+  onRedo?: () => void;
   onReset: () => void;
   onResetCoaching: () => void;
   onDismissTipsChip: () => void;
   saveStatus: SaveStatus;
   modeIsExperienced: boolean;
+  layoutIsThree: boolean;
+  onToggleQueueDrawer: () => void;
 }) {
   const {
     filename,
@@ -1521,15 +1543,16 @@ function TopBar(props: {
     failCount,
     skippedCount,
     labeledPct,
-    unlabeledCount,
     coachingEnabled,
     coachingActive,
     tipsChipDismissed,
-    remainingSeconds,
     allTagsCount,
     findOpen,
     filter,
     allTags,
+    undoCount,
+    redoCount,
+    unlabeledCount,
     onJumpUnlabeled,
     onOpenFind,
     onCloseFind,
@@ -1539,16 +1562,34 @@ function TopBar(props: {
     onOpenTags,
     onOpenSettings,
     onExport,
+    onUndo,
+    onRedo,
     onReset,
     onResetCoaching,
     onDismissTipsChip,
     saveStatus,
     modeIsExperienced,
+    layoutIsThree,
+    onToggleQueueDrawer,
   } = props;
+  // The kebab is the v3.2 home for everything that used to crowd the
+  // top bar (Find, Tags, Export, Undo/Redo, Settings). Hotkeys still
+  // fire independently; the menu is the discoverable counterpart.
 
   return (
     <div className="lv-topbar">
       <div className="lv-topbar__left">
+        {layoutIsThree && (
+          <button
+            type="button"
+            onClick={onToggleQueueDrawer}
+            className="ta-iconbtn ta-iconbtn--queueToggle"
+            aria-label="Show trace queue"
+            title="Show trace queue"
+          >
+            <span aria-hidden="true">≡</span>
+          </button>
+        )}
         <button
           type="button"
           onClick={onReset}
@@ -1607,14 +1648,6 @@ function TopBar(props: {
             {labeledCount} labeled
             {labeledPct > 0 ? ` · ${labeledPct}%` : ""}
           </span>
-          {remainingSeconds !== null && remainingSeconds > 0 && (
-            <span
-              className="lv-progress__sub lv-progress__remaining"
-              title="Estimated from your recent labeling pace"
-            >
-              {formatRemaining(remainingSeconds)}
-            </span>
-          )}
         </div>
       </div>
 
@@ -1638,93 +1671,285 @@ function TopBar(props: {
             ? tips
           </button>
         )}
-        <button
-          type="button"
-          className="ta-iconbtn"
-          onClick={onJumpUnlabeled}
-          disabled={unlabeledCount === 0}
-          aria-label="Jump to next unlabeled"
-          title="Jump to next unlabeled"
-        >
-          next unlabeled <kbd>U</kbd>
-        </button>
-        <div className="lv-topbar__findwrap">
-          <button
-            type="button"
-            onClick={onOpenFind}
-            className="ta-iconbtn"
-            aria-label="Find traces"
-            aria-expanded={findOpen}
-            title="Filter, jump to a trace, or sample"
-          >
-            find <kbd>Ctrl K</kbd>
-          </button>
-          {findOpen && (
-            <FindPopover
-              filter={filter}
-              onFilter={onFilterChange}
-              allTags={allTags}
-              total={total}
-              jumpTo={onJumpTo}
-              sampleRandom={onSampleRandom}
-              onClose={onCloseFind}
-            />
-          )}
-        </div>
-        <button
-          type="button"
-          onClick={onOpenTags}
-          disabled={allTagsCount === 0}
-          className="ta-iconbtn"
-          aria-label="Manage tags"
-          title="Manage tags"
-        >
-          tags ({allTagsCount})
-        </button>
-        <ExportButton onExport={onExport} disabled={labeledCount === 0} />
-        <button
-          type="button"
-          onClick={onOpenSettings}
-          className="ta-iconbtn"
-          aria-label="Open settings"
-          title="Settings"
-        >
-          settings
-        </button>
         <SaveIndicator status={saveStatus} />
+        <KebabMenu
+          allTagsCount={allTagsCount}
+          labeledCount={labeledCount}
+          undoCount={undoCount}
+          redoCount={redoCount}
+          findOpen={findOpen}
+          filter={filter}
+          allTags={allTags}
+          total={total}
+          unlabeledCount={unlabeledCount}
+          onJumpUnlabeled={onJumpUnlabeled}
+          onOpenFind={onOpenFind}
+          onCloseFind={onCloseFind}
+          onFilterChange={onFilterChange}
+          onJumpTo={onJumpTo}
+          onSampleRandom={onSampleRandom}
+          onOpenTags={onOpenTags}
+          onOpenSettings={onOpenSettings}
+          onExport={onExport}
+          onUndo={onUndo}
+          onRedo={onRedo}
+        />
       </div>
     </div>
   );
 }
 
-function BottomBar(props: {
-  idx: number;
-  total: number;
+// KebabMenu (issue #55) - the single overflow surface that absorbs every
+// session-level tool that used to sit inline on the top bar. It opens a
+// popover anchored to the `⋯` icon. Hotkeys still fire independently of
+// this menu; the menu exists for discoverability.
+//
+// Find lives here too, but its popover renders separately so its rich
+// filter/jump/sample UI doesn't have to be shoe-horned into a menu list.
+// When the user picks "Find" the menu closes and the find popover opens
+// against the same anchor.
+function KebabMenu(props: {
+  allTagsCount: number;
   labeledCount: number;
-  canPrev: boolean;
-  canNext: boolean;
   undoCount: number;
   redoCount: number;
-  saveStatus: SaveStatus;
-  onPrev: () => void;
-  onNext: () => void;
+  findOpen: boolean;
+  filter: Filter;
+  allTags: string[];
+  total: number;
+  unlabeledCount: number;
+  onJumpUnlabeled: () => void;
+  onOpenFind: () => void;
+  onCloseFind: () => void;
+  onFilterChange: (f: Filter) => void;
+  onJumpTo: (n: number) => void;
+  onSampleRandom: (n: number) => void;
+  onOpenTags: () => void;
+  onOpenSettings: () => void;
+  onExport: (fmt: "jsonl" | "csv") => void;
   onUndo?: () => void;
   onRedo?: () => void;
 }) {
   const {
-    idx,
-    total,
+    allTagsCount,
     labeledCount,
-    canPrev,
-    canNext,
     undoCount,
     redoCount,
-    saveStatus,
-    onPrev,
-    onNext,
+    findOpen,
+    filter,
+    allTags,
+    total,
+    unlabeledCount,
+    onJumpUnlabeled,
+    onOpenFind,
+    onCloseFind,
+    onFilterChange,
+    onJumpTo,
+    onSampleRandom,
+    onOpenTags,
+    onOpenSettings,
+    onExport,
     onUndo,
     onRedo,
   } = props;
+  const [open, setOpen] = useState(false);
+  const [exportSubOpen, setExportSubOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open && !findOpen) return;
+    function onClickOutside(e: MouseEvent) {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(e.target as Node)
+      ) {
+        setOpen(false);
+        setExportSubOpen(false);
+      }
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setOpen(false);
+        setExportSubOpen(false);
+      }
+    }
+    window.addEventListener("mousedown", onClickOutside);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("mousedown", onClickOutside);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [open, findOpen]);
+
+  function close() {
+    setOpen(false);
+    setExportSubOpen(false);
+  }
+
+  return (
+    <div ref={containerRef} className="lv-kebabwrap">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="ta-iconbtn ta-iconbtn--kebab"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label="More actions"
+        title="More actions"
+      >
+        <span aria-hidden="true">⋯</span>
+      </button>
+      {open && (
+        <div className="lv-kebab-menu" role="menu" aria-label="Tools">
+          <button
+            type="button"
+            role="menuitem"
+            className="lv-kebab-menu__item"
+            disabled={unlabeledCount === 0}
+            onClick={() => {
+              close();
+              onJumpUnlabeled();
+            }}
+          >
+            <span>Jump to next unlabeled</span>
+            <kbd>U</kbd>
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="lv-kebab-menu__item"
+            onClick={() => {
+              close();
+              onOpenFind();
+            }}
+          >
+            <span>Find / jump to trace</span>
+            <kbd>Ctrl K</kbd>
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="lv-kebab-menu__item"
+            disabled={allTagsCount === 0}
+            onClick={() => {
+              close();
+              onOpenTags();
+            }}
+          >
+            <span>Manage tags</span>
+            <span className="lv-kebab-menu__count">{allTagsCount}</span>
+          </button>
+          <div className="lv-kebab-menu__sub">
+            <button
+              type="button"
+              role="menuitem"
+              aria-haspopup="menu"
+              aria-expanded={exportSubOpen}
+              className="lv-kebab-menu__item"
+              disabled={labeledCount === 0}
+              onClick={() => setExportSubOpen((v) => !v)}
+            >
+              <span>Export labels</span>
+              <span className="lv-kebab-menu__caret" aria-hidden="true">
+                {exportSubOpen ? "▾" : "▸"}
+              </span>
+            </button>
+            {exportSubOpen && (
+              <div className="lv-kebab-menu__submenu" role="menu">
+                {(["jsonl", "csv"] as const).map((fmt) => (
+                  <button
+                    key={fmt}
+                    type="button"
+                    role="menuitem"
+                    className="lv-kebab-menu__item lv-kebab-menu__item--sub"
+                    onClick={() => {
+                      onExport(fmt);
+                      close();
+                    }}
+                  >
+                    download .{fmt}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <hr className="lv-kebab-menu__rule" />
+          <button
+            type="button"
+            role="menuitem"
+            className="lv-kebab-menu__item"
+            disabled={!onUndo}
+            onClick={() => {
+              onUndo?.();
+              close();
+            }}
+          >
+            <span>
+              Undo
+              {undoCount > 0 && (
+                <span className="lv-kebab-menu__count">({undoCount})</span>
+              )}
+            </span>
+            <kbd>Ctrl Z</kbd>
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="lv-kebab-menu__item"
+            disabled={!onRedo}
+            onClick={() => {
+              onRedo?.();
+              close();
+            }}
+          >
+            <span>
+              Redo
+              {redoCount > 0 && (
+                <span className="lv-kebab-menu__count">({redoCount})</span>
+              )}
+            </span>
+            <kbd>Ctrl Shift Z</kbd>
+          </button>
+          <hr className="lv-kebab-menu__rule" />
+          <button
+            type="button"
+            role="menuitem"
+            className="lv-kebab-menu__item"
+            onClick={() => {
+              close();
+              onOpenSettings();
+            }}
+          >
+            Settings
+          </button>
+        </div>
+      )}
+      {findOpen && (
+        <FindPopover
+          filter={filter}
+          onFilter={onFilterChange}
+          allTags={allTags}
+          total={total}
+          jumpTo={onJumpTo}
+          sampleRandom={onSampleRandom}
+          onClose={onCloseFind}
+        />
+      )}
+    </div>
+  );
+}
+
+// BottomBar - v3.2 trimmed to Prev / Next only. The counter, undo/redo
+// controls, save status, and labeled count moved into the top bar's
+// kebab menu and progress strip; the queue rail makes "where am I"
+// visible without a number, so the bottom bar can shrink to one job.
+function BottomBar(props: {
+  canPrev: boolean;
+  canNext: boolean;
+  onPrev: () => void;
+  onNext: () => void;
+}) {
+  const { canPrev, canNext, onPrev, onNext } = props;
   return (
     <div className="lv-bottombar">
       <div className="lv-bottombar__group">
@@ -1744,40 +1969,331 @@ function BottomBar(props: {
         >
           next <kbd>{"→"}</kbd>
         </button>
-        <span className="lv-bottombar__counter">
-          {idx + 1} of {total}
-        </span>
       </div>
-      <div className="lv-bottombar__group">
+    </div>
+  );
+}
+
+// QueueRail (issue #55) - the third pane on the left in three-pane mode.
+// Lists every trace in the session with a verdict-coloured status dot,
+// the trace title (wraps if long), and a short id. Clicking a row jumps;
+// hover reveals a checkbox, click adds to the selection, shift-click
+// extends a range from the last clicked row. When 1+ rows are selected
+// a contextual action bar slides in at the bottom of the queue with
+// Pass-all / Fail-all / Apply-tag / Clear actions - replacing BatchPanel.
+function QueueRail({
+  traces,
+  annotations,
+  activeIndex,
+  selectedIds,
+  allTags,
+  drawerOpen,
+  onJump,
+  onToggleSelected,
+  onSelectMany,
+  onClearSelection,
+  onApplyBatchVerdict,
+  onApplyBatchTag,
+  onCloseDrawer,
+}: {
+  traces: Trace[];
+  annotations: Annotations;
+  activeIndex: number;
+  selectedIds: Set<string>;
+  allTags: string[];
+  drawerOpen: boolean;
+  onJump: (index: number) => void;
+  onToggleSelected: (id: string) => void;
+  onSelectMany: (ids: string[]) => void;
+  onClearSelection: () => void;
+  onApplyBatchVerdict: (verdict: Verdict) => void;
+  onApplyBatchTag: (tag: string) => void;
+  onCloseDrawer: () => void;
+}) {
+  const [filterQuery, setFilterQuery] = useState("");
+  const railRef = useRef<HTMLElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const activeRowRef = useRef<HTMLDivElement>(null);
+
+  // Esc / click-outside closes the drawer at narrow viewports. The drawer
+  // is reachable only via the top-bar toggle button below 1024px; above
+  // that breakpoint these handlers do nothing because drawerOpen never
+  // becomes true (the toggle button is hidden by CSS).
+  useEffect(() => {
+    if (!drawerOpen) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onCloseDrawer();
+    }
+    function onClickOutside(e: MouseEvent) {
+      if (railRef.current && !railRef.current.contains(e.target as Node)) {
+        onCloseDrawer();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("mousedown", onClickOutside);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("mousedown", onClickOutside);
+    };
+  }, [drawerOpen, onCloseDrawer]);
+
+  // Keep the active row visible. Without this, P/F/U keystrokes drive the
+  // highlight off-screen in long sessions and the "where am I" promise of
+  // the queue rail breaks. `block: nearest` only scrolls when needed, so
+  // smooth navigation isn't yanked around when the row is already in view.
+  useEffect(() => {
+    activeRowRef.current?.scrollIntoView({ block: "nearest" });
+  }, [activeIndex]);
+
+  // Range anchor for shift-click. Tracks the last index the user clicked
+  // (either the row body or its checkbox) so a subsequent shift-click
+  // can extend a contiguous range.
+  const lastClickIndexRef = useRef<number | null>(null);
+  // Reset the anchor when the parent clears the selection (Esc, action
+  // bar clear, etc). Without this, the next shift-click extends from a
+  // stale anchor that hasn't been touched since before Esc.
+  useEffect(() => {
+    if (selectedIds.size === 0) lastClickIndexRef.current = null;
+  }, [selectedIds]);
+
+  const filterTrim = filterQuery.trim().toLowerCase();
+  const visibleTraces = useMemo(() => {
+    const all = traces.map((t, originalIndex) => ({ trace: t, originalIndex }));
+    if (!filterTrim) return all;
+    return all.filter(({ trace }) => {
+      // Filter against the same string the user sees in the row, so
+      // typing what's on screen actually finds it. Falling back to
+      // trace.id covers files where the title is not a unique label.
+      const visibleTitle = deriveTraceTitle(trace).toLowerCase();
+      return (
+        trace.id.toLowerCase().includes(filterTrim) ||
+        visibleTitle.includes(filterTrim)
+      );
+    });
+  }, [traces, filterTrim]);
+
+  function handleRowClick(e: React.MouseEvent, originalIndex: number) {
+    if (e.shiftKey && lastClickIndexRef.current !== null) {
+      const lo = Math.min(lastClickIndexRef.current, originalIndex);
+      const hi = Math.max(lastClickIndexRef.current, originalIndex);
+      onSelectMany(traces.slice(lo, hi + 1).map((t) => t.id));
+      // Don't move activeIndex on shift-click; user is in selection mode.
+      return;
+    }
+    lastClickIndexRef.current = originalIndex;
+    onJump(originalIndex);
+  }
+
+  function handleCheckboxClick(
+    e: React.MouseEvent<HTMLInputElement>,
+    traceId: string,
+    originalIndex: number,
+  ) {
+    e.stopPropagation();
+    if (e.shiftKey && lastClickIndexRef.current !== null) {
+      const lo = Math.min(lastClickIndexRef.current, originalIndex);
+      const hi = Math.max(lastClickIndexRef.current, originalIndex);
+      onSelectMany(traces.slice(lo, hi + 1).map((t) => t.id));
+    } else {
+      onToggleSelected(traceId);
+    }
+    lastClickIndexRef.current = originalIndex;
+  }
+
+  return (
+    <aside
+      ref={railRef}
+      aria-label="Trace queue"
+      className="lv-leftnav"
+      data-drawer={drawerOpen ? "open" : "closed"}
+    >
+      <div className="lv-leftnav__head">queue</div>
+      <div className="lv-leftnav__filter">
+        <input
+          type="search"
+          value={filterQuery}
+          onChange={(e) => setFilterQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              e.preventDefault();
+              setFilterQuery("");
+              (e.target as HTMLInputElement).blur();
+            }
+          }}
+          placeholder="Filter the queue..."
+          aria-label="Filter the queue"
+        />
+      </div>
+      <div ref={listRef} className="lv-leftnav__list scroll-y">
+        {visibleTraces.length === 0 && (
+          <div className="lv-leftnav__empty">
+            {filterQuery
+              ? <>no traces match &quot;{filterQuery}&quot;</>
+              : <>no traces in this session yet</>}
+          </div>
+        )}
+        {visibleTraces.map(({ trace, originalIndex }) => {
+          const ann = getOrEmpty(annotations, trace.id);
+          const status: "pass" | "fail" | "skip" | "open" = ann.skipped
+            ? "skip"
+            : ann.verdict ?? "open";
+          const meta = (trace.metadata as Record<string, unknown> | undefined) ?? undefined;
+          const title = deriveTraceTitle(trace);
+          const shortId = trace.id.replace(/^t_/, "");
+          const tooltipBits: string[] = [trace.id];
+          if (typeof meta?.source === "string") tooltipBits.push(meta.source);
+          if (ann.labeledAt) tooltipBits.push(ann.labeledAt);
+          const isActive = originalIndex === activeIndex;
+          const isSelected = selectedIds.has(trace.id);
+          const visibleTags = ann.tags.slice(0, 2);
+          // The row is split into two interactive surfaces side-by-side:
+          // a checkbox (selection) and a button (jump). They live as
+          // siblings inside a presentational div so the grid layout still
+          // works without nesting interactives, which is invalid ARIA.
+          return (
+            <div
+              key={trace.id}
+              ref={isActive ? activeRowRef : null}
+              className={`lv-leftnav__item${isActive ? " lv-leftnav__item--active" : ""}${isSelected ? " lv-leftnav__item--selected" : ""}`}
+              data-active={isActive ? "true" : undefined}
+              title={tooltipBits.join(" · ")}
+            >
+              <input
+                type="checkbox"
+                className="lv-leftnav__check"
+                checked={isSelected}
+                aria-label={`Select trace ${trace.id} for batch action`}
+                onChange={() => {
+                  // The click handler reads shiftKey; onChange has no event
+                  // payload that distinguishes shift-clicks. We keep the
+                  // checkbox controlled and rely on the click handler.
+                }}
+                onClick={(e) => handleCheckboxClick(e, trace.id, originalIndex)}
+              />
+              <button
+                type="button"
+                className="lv-leftnav__rowBtn"
+                aria-current={isActive ? "true" : undefined}
+                onClick={(e) => handleRowClick(e, originalIndex)}
+              >
+                <span
+                  className={`lv-leftnav__dot lv-leftnav__dot--${status}`}
+                  aria-hidden="true"
+                />
+                <span className="lv-leftnav__title">{title}</span>
+                <span className="lv-leftnav__id">{shortId}</span>
+                {visibleTags.length > 0 && (
+                  <span className="lv-leftnav__tags">
+                    {visibleTags.map((tag) => (
+                      <span key={tag} className="lv-leftnav__tagChip">
+                        {tag}
+                      </span>
+                    ))}
+                  </span>
+                )}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+      {selectedIds.size > 0 && (
+        <QueueActionBar
+          selectedCount={selectedIds.size}
+          allTags={allTags}
+          onApplyVerdict={onApplyBatchVerdict}
+          onApplyTag={onApplyBatchTag}
+          onClear={() => {
+            onClearSelection();
+            lastClickIndexRef.current = null;
+          }}
+        />
+      )}
+    </aside>
+  );
+}
+
+// QueueActionBar - the contextual action bar that appears at the bottom
+// of the queue rail when 1+ traces are selected. It replaces the v3
+// `BatchPanel` (which lived in the right rail and was experienced-mode
+// only). Same three actions: Pass all, Fail all, Apply tag - now
+// reachable from the navigation surface where the selection happens.
+function QueueActionBar({
+  selectedCount,
+  allTags,
+  onApplyVerdict,
+  onApplyTag,
+  onClear,
+}: {
+  selectedCount: number;
+  allTags: string[];
+  onApplyVerdict: (verdict: Verdict) => void;
+  onApplyTag: (tag: string) => void;
+  onClear: () => void;
+}) {
+  const [tagInput, setTagInput] = useState("");
+  function submitTag(e?: React.FormEvent) {
+    e?.preventDefault();
+    const tag = tagInput.trim();
+    if (!tag) return;
+    onApplyTag(tag);
+    setTagInput("");
+  }
+  return (
+    <div className="lv-leftnav__actionBar" role="region" aria-label="Bulk action bar">
+      <div className="lv-leftnav__actionHead">
+        <span className="lv-leftnav__actionCount">
+          {selectedCount} selected
+        </span>
         <button
           type="button"
-          onClick={onUndo}
-          disabled={!onUndo}
-          className="lv-nav lv-nav--quiet"
-          aria-label="Undo last change"
-          title="Undo last change (Ctrl/Cmd+Z)"
+          onClick={onClear}
+          className="lv-leftnav__actionClear"
         >
-          undo
-          {undoCount > 0 && <span className="lv-nav__count">({undoCount})</span>}
-          <kbd>Ctrl Z</kbd>
+          clear
+        </button>
+      </div>
+      <div className="lv-leftnav__actionVerdicts">
+        <button
+          type="button"
+          className="verdict-btn"
+          data-active="pass"
+          onClick={() => onApplyVerdict("pass")}
+          aria-label={`Pass all ${selectedCount} selected`}
+        >
+          Pass all
         </button>
         <button
           type="button"
-          onClick={onRedo}
-          disabled={!onRedo}
-          className="lv-nav lv-nav--quiet"
-          aria-label="Redo last undone change"
-          title="Redo (Ctrl/Cmd+Shift+Z)"
+          className="verdict-btn"
+          data-active="fail"
+          onClick={() => onApplyVerdict("fail")}
+          aria-label={`Fail all ${selectedCount} selected`}
         >
-          redo
-          {redoCount > 0 && <span className="lv-nav__count">({redoCount})</span>}
-          <kbd>Ctrl Shift Z</kbd>
+          Fail all
         </button>
-        <SaveIndicatorInline status={saveStatus} />
-        <span className="lv-bottombar__counter">
-          {labeledCount} / {total} labeled
-        </span>
       </div>
+      <form onSubmit={submitTag} className="lv-leftnav__actionTagForm">
+        <input
+          type="text"
+          list="queue-action-tags"
+          value={tagInput}
+          onChange={(e) => setTagInput(e.target.value)}
+          placeholder="Apply tag to all..."
+          aria-label="Tag to apply to all selected traces"
+        />
+        <datalist id="queue-action-tags">
+          {allTags.map((t) => (
+            <option key={t} value={t} />
+          ))}
+        </datalist>
+        <button
+          type="submit"
+          disabled={tagInput.trim() === ""}
+          className="lv-nav lv-nav--primary"
+        >
+          apply
+        </button>
+      </form>
     </div>
   );
 }
@@ -1833,19 +2349,27 @@ function SettingsModal({
   hotkeys,
   mode,
   coachingEnabled,
+  layout,
+  density,
   onClose,
   onChange,
   onModeChange,
   onCoachingChange,
+  onLayoutChange,
+  onDensityChange,
 }: {
   open: boolean;
   hotkeys: Hotkeys;
   mode: Mode;
   coachingEnabled: boolean;
+  layout: LayoutPreference;
+  density: DensityPreference;
   onClose: () => void;
   onChange: (next: Hotkeys) => void;
   onModeChange: (next: Mode) => void;
   onCoachingChange: (next: boolean) => void;
+  onLayoutChange: (next: LayoutPreference) => void;
+  onDensityChange: (next: DensityPreference) => void;
 }) {
   const dialogRef = useFocusTrap<HTMLDivElement>(open);
 
@@ -1894,6 +2418,28 @@ function SettingsModal({
           </button>
         </div>
         <div className="lv-overlay__body scroll-y">
+          <SettingsRadioSection
+            title="Layout"
+            description="Three-pane shows the queue rail on the left for session navigation; two-pane hides the queue (used automatically on narrow viewports)."
+            value={layout}
+            onChange={onLayoutChange}
+            options={[
+              { value: "three", label: "Three-pane (queue + trace + decision rail)" },
+              { value: "two", label: "Two-pane (trace + decision rail)" },
+            ]}
+            name="ta-layout"
+          />
+          <SettingsRadioSection
+            title="Density"
+            description="Dense fits more trace per scroll; medium gives extra breathing room around metadata and chat turns."
+            value={density}
+            onChange={onDensityChange}
+            options={[
+              { value: "dense", label: "Dense" },
+              { value: "medium", label: "Medium" },
+            ]}
+            name="ta-density"
+          />
           <SettingsToggleSection
             title="Coaching"
             description="Show first-run tips and milestone cards. Independent of experienced mode - turn on or off whenever."
@@ -1982,6 +2528,49 @@ function SettingsToggleSection({
       >
         <span className="lv-toggle__thumb" />
       </button>
+    </div>
+  );
+}
+
+// Radio variant for multi-choice preferences (layout, density). Visually it
+// stacks below the description like a fieldset; behaviorally it is a native
+// radio group keyed by `name` so screen-reader announcements and arrow-key
+// navigation just work without extra ARIA scaffolding.
+function SettingsRadioSection<T extends string>({
+  title,
+  description,
+  value,
+  onChange,
+  options,
+  name,
+}: {
+  title: string;
+  description: string;
+  value: T;
+  onChange: (next: T) => void;
+  options: { value: T; label: string }[];
+  name: string;
+}) {
+  return (
+    <div className="lv-overlay__settingsRow lv-overlay__settingsRow--stacked">
+      <div className="lv-overlay__settingsCopy">
+        <div className="lv-overlay__settingsTitle">{title}</div>
+        <p className="lv-overlay__settingsDesc">{description}</p>
+      </div>
+      <div role="radiogroup" aria-label={title} className="lv-overlay__radioGroup">
+        {options.map((opt) => (
+          <label key={opt.value} className="lv-overlay__radioRow">
+            <input
+              type="radio"
+              name={name}
+              value={opt.value}
+              checked={value === opt.value}
+              onChange={() => onChange(opt.value)}
+            />
+            <span>{opt.label}</span>
+          </label>
+        ))}
+      </div>
     </div>
   );
 }
@@ -2391,76 +2980,6 @@ function SaveIndicator({ status }: { status: SaveStatus }) {
       <span className="lv-savestatus__dot" />
       {label}
     </span>
-  );
-}
-
-function SaveIndicatorInline({ status }: { status: SaveStatus }) {
-  // Same data, slightly more compact for the bottom bar.
-  return <SaveIndicator status={status} />;
-}
-
-function ExportButton({
-  onExport,
-  disabled,
-}: {
-  onExport: (fmt: "jsonl" | "csv") => void;
-  disabled: boolean;
-}) {
-  const [open, setOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    function onClickOutside(e: MouseEvent) {
-      if (
-        containerRef.current &&
-        !containerRef.current.contains(e.target as Node)
-      ) {
-        setOpen(false);
-      }
-    }
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
-    }
-    window.addEventListener("mousedown", onClickOutside);
-    window.addEventListener("keydown", onKey);
-    return () => {
-      window.removeEventListener("mousedown", onClickOutside);
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
-
-  return (
-    <div ref={containerRef} className="lv-export">
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={() => setOpen((v) => !v)}
-        className="ta-iconbtn"
-        aria-haspopup="menu"
-        aria-expanded={open}
-      >
-        export
-      </button>
-      {open && (
-        <div className="lv-export__menu" role="menu">
-          {(["jsonl", "csv"] as const).map((fmt) => (
-            <button
-              key={fmt}
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                onExport(fmt);
-                setOpen(false);
-              }}
-              className="lv-export__item"
-            >
-              download .{fmt}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
   );
 }
 

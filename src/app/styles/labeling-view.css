@@ -101,7 +101,11 @@
 /* ───── decision rail ───── */
 
 .lv-rail {
-  background: var(--paper);
+  /* Issue #55: subtle paper-2 base under the rail anchors the section
+   * headers and helper text against the warm background so they read
+   * as labels rather than ghosted afterthoughts. Each section then
+   * lifts onto paper-1 for contrast. */
+  background: var(--paper-2);
   display: flex;
   flex-direction: column;
   overflow-y: auto;
@@ -112,19 +116,34 @@
 .lv-rail__section {
   padding: 16px 18px;
   border-bottom: 1px solid var(--rule);
+  background: var(--paper);
 }
 
 .lv-rail__section:last-child { border-bottom: 0; }
 
 .lv-rail__label {
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: 11px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--ink-3);
+  /* Issue #55: ink-3 (#6a655a) was too light for an uppercase label at this
+   * size against paper. Bumping to ink-2 + bold weight without enlarging the
+   * label keeps the section header subordinate to body content but legible. */
+  color: var(--ink-2);
+  font-weight: 600;
   margin-bottom: 10px;
   display: flex;
   align-items: center;
+}
+
+.lv-rail__labelMeta {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  color: var(--ink-3);
+  text-transform: none;
 }
 
 /* ───── tag input ───── */
@@ -161,7 +180,10 @@
   transition: border-color .12s, box-shadow .12s;
 }
 
-.lv-tag-input input::placeholder { color: var(--ink-4); }
+/* Issue #55: placeholder bumped from ink-4 to ink-3 so the prompt
+ * "Type to filter, Enter to add new..." reads at a glance without
+ * giving up its quietness against the input border. */
+.lv-tag-input input::placeholder { color: var(--ink-3); }
 .lv-tag-input input:focus {
   border-color: color-mix(in oklab, var(--accent) 50%, transparent);
   box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 12%, transparent);
@@ -237,7 +259,10 @@
   transition: border-color .12s, box-shadow .12s;
 }
 
-.lv-note::placeholder { color: var(--ink-4); font-style: italic; }
+/* Same readability bump as the tag input placeholder. The note is a
+ * blank serif canvas so the prompt has to be visible without being
+ * mistaken for live content - keep the italic, just lift the ink. */
+.lv-note::placeholder { color: var(--ink-3); font-style: italic; }
 .lv-note:focus {
   border-color: color-mix(in oklab, var(--accent) 50%, transparent);
   box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 12%, transparent);
@@ -246,25 +271,39 @@
 /* ───── bottom bar ───── */
 
 .lv-bottombar {
-  height: 38px;
+  height: 44px;
   border-top: 1px solid var(--rule);
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  /* Single centred Prev/Next group (issue #55 manual feedback). The bar
+   * has no other content now; centring keeps the controls in a fixed
+   * spatial home regardless of viewport width. */
+  justify-content: center;
   padding: 0 16px;
   background: var(--paper);
+}
+
+.lv-bottombar__group {
+  display: flex;
+  align-items: center;
+  gap: 14px;
 }
 
 .lv-nav {
   background: transparent;
   border: 1px solid var(--rule);
-  padding: 4px 10px;
-  border-radius: var(--r-sm);
-  font-size: 12px;
+  /* Wider hit target for bottom-bar Prev / Next - the only controls
+   * down there now, so they earn the breathing room. */
+  padding: 7px 22px;
+  min-width: 120px;
+  border-radius: var(--r-md);
+  font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
+  gap: 8px;
   color: var(--ink-2);
 }
 
@@ -302,13 +341,14 @@
   background: oklch(0.65 0.09 150);
 }
 
-/* ───── left nav (3-pane) ───── */
+/* ───── left nav (3-pane queue rail) ───── */
 
 .lv-leftnav {
   border-right: 1px solid var(--rule);
   background: var(--paper-2);
-  overflow-y: auto;
-  scrollbar-width: thin;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .lv-leftnav__head {
@@ -318,14 +358,67 @@
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--ink-3);
+  flex-shrink: 0;
 }
 
-.lv-leftnav__item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.lv-leftnav__filter {
+  padding: 6px 10px 8px;
+  border-bottom: 1px solid var(--rule);
+  flex-shrink: 0;
+}
+.lv-leftnav__filter input {
   width: 100%;
-  padding: 7px 12px;
+  padding: 5px 8px;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-sm);
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 12px;
+  outline: none;
+}
+.lv-leftnav__filter input::placeholder { color: var(--ink-3); }
+.lv-leftnav__filter input:focus {
+  border-color: color-mix(in oklab, var(--accent) 50%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 12%, transparent);
+}
+
+.lv-leftnav__list {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.lv-leftnav__empty {
+  padding: 14px 14px 4px;
+  font-family: var(--sans);
+  font-size: 12px;
+  color: var(--ink-3);
+  font-style: italic;
+}
+
+/* The row is a presentational grid that hosts two interactive siblings:
+ * a checkbox in column 1 and a button (.lv-leftnav__rowBtn) spanning the
+ * rest. The button itself nests its own grid for dot + title + id + tags. */
+.lv-leftnav__item {
+  display: grid;
+  grid-template-columns: 16px 1fr;
+  column-gap: 8px;
+  align-items: stretch;
+  width: 100%;
+  padding: 0 12px;
+  border-left: 2px solid transparent;
+}
+
+.lv-leftnav__rowBtn {
+  display: grid;
+  grid-template-columns: 8px 1fr auto;
+  grid-template-rows: auto auto;
+  column-gap: 8px;
+  row-gap: 4px;
+  width: 100%;
+  padding: 8px 0;
   border: 0;
   background: transparent;
   font-family: var(--sans);
@@ -333,7 +426,31 @@
   color: var(--ink-2);
   text-align: left;
   cursor: pointer;
-  border-left: 2px solid transparent;
+}
+.lv-leftnav__rowBtn:hover { color: var(--ink); }
+
+.lv-leftnav__check {
+  margin: 0;
+  align-self: center;
+  cursor: pointer;
+  accent-color: var(--accent);
+  /* Resting state is faint, not hidden, so first-time users discover
+   * that rows are selectable. Lifts to full opacity on hover, focus,
+   * or when this row (or any other) is selected. */
+  opacity: 0.35;
+}
+.lv-leftnav__item:hover .lv-leftnav__check,
+.lv-leftnav__item--active .lv-leftnav__check,
+.lv-leftnav__item--selected .lv-leftnav__check,
+.lv-leftnav__item:focus-within .lv-leftnav__check {
+  opacity: 1;
+}
+
+.lv-leftnav__item--selected {
+  background: color-mix(in oklab, var(--accent) 8%, var(--paper));
+}
+.lv-leftnav__item--selected:hover {
+  background: color-mix(in oklab, var(--accent) 14%, var(--paper));
 }
 
 .lv-leftnav__item:hover { background: var(--paper-3); }
@@ -345,25 +462,125 @@
 }
 
 .lv-leftnav__dot {
-  width: 6px; height: 6px; border-radius: 3px; flex-shrink: 0;
+  width: 8px; height: 8px; border-radius: 4px;
+  align-self: center;
+  margin-top: 2px;
 }
 .lv-leftnav__dot--pass { background: oklch(0.6 0.09 150); }
 .lv-leftnav__dot--fail { background: oklch(0.6 0.13 30); }
-.lv-leftnav__dot--skip { background: var(--ink-4); }
-.lv-leftnav__dot--open { background: transparent; border: 1px solid var(--ink-4); }
+/* Skip / open dots use ink-3 instead of ink-4 so the status indicator
+ * meets the 3:1 non-text contrast minimum against paper. */
+.lv-leftnav__dot--skip { background: var(--ink-3); }
+.lv-leftnav__dot--open { background: transparent; border: 1px solid var(--ink-3); }
 
+/* Title wraps (no truncation). The wedge-and-grow story is "see the trace
+ * you're scanning for." Truncating titles defeats that. */
 .lv-leftnav__title {
-  flex: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+  align-self: center;
 }
 
 .lv-leftnav__id {
   font-family: var(--mono);
-  font-size: 10px;
-  color: var(--ink-4);
+  /* Issue #55 review feedback: ink-4 at 10px failed WCAG AA against
+   * paper. Bumping to ink-3 (and 10.5px) keeps the id quiet but
+   * actually readable. */
+  font-size: 10.5px;
+  color: var(--ink-3);
+  align-self: center;
 }
+
+/* Tag chips on the active row, plus the chip strip on hover for any row.
+ * Keeps unlabeled rows scannable by default; reveals context on demand. */
+.lv-leftnav__tags {
+  grid-column: 2 / -1;
+  display: none;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.lv-leftnav__item:hover .lv-leftnav__tags,
+.lv-leftnav__item--active .lv-leftnav__tags {
+  display: flex;
+}
+.lv-leftnav__tagChip {
+  font-family: var(--sans);
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--paper-3);
+  color: var(--ink-2);
+  border: 1px solid var(--rule);
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Contextual action bar at the bottom of the queue (issue #55). Appears
+ * when 1+ rows are selected; replaces the v3 BatchPanel that lived in
+ * the right rail. Visually distinct from regular queue rows so the
+ * action surface doesn't get confused with navigation. */
+.lv-leftnav__actionBar {
+  border-top: 1px solid var(--rule);
+  background: var(--paper);
+  padding: 10px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.lv-leftnav__actionHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.lv-leftnav__actionCount {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--ink);
+  font-weight: 500;
+}
+.lv-leftnav__actionClear {
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--accent-ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  padding: 0;
+}
+.lv-leftnav__actionVerdicts {
+  display: flex;
+  gap: 6px;
+}
+.lv-leftnav__actionVerdicts .verdict-btn { flex: 1; padding: 6px 8px; font-size: 12px; }
+
+.lv-leftnav__actionTagForm {
+  display: flex;
+  gap: 6px;
+}
+.lv-leftnav__actionTagForm input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-sm);
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 12px;
+  outline: none;
+}
+.lv-leftnav__actionTagForm input::placeholder { color: var(--ink-3); }
+.lv-leftnav__actionTagForm input:focus {
+  border-color: color-mix(in oklab, var(--accent) 50%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 12%, transparent);
+}
+.lv-leftnav__actionTagForm .lv-nav { flex-shrink: 0; padding: 6px 12px; }
 
 /* ───── tool calls ───── */
 
@@ -578,17 +795,6 @@
   border-color: color-mix(in oklab, var(--fail) 30%, transparent);
 }
 
-.lv-trace__selectLabel {
-  margin-left: auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--ink-3);
-  cursor: pointer;
-}
-
 /* topbar internals */
 
 .lv-topbar__file {
@@ -620,18 +826,13 @@
 }
 .lv-progress__remaining { color: var(--ink-4); }
 
-.lv-topbar__findwrap { position: relative; }
 
 /* verdict button group + applied tag chips + label meta */
 
 .lv-verdict { display: flex; gap: 8px; }
 
-.lv-rail__labelMeta {
-  margin-left: auto;
-  font-family: var(--mono);
-  font-size: 10.5px;
-  color: var(--ink-4);
-}
+/* The full lv-rail__labelMeta rule lives next to lv-rail__label above; this
+ * stub is kept so existing selectors still resolve in this section. */
 .lv-rail__inlineMeta { margin-top: 6px; }
 
 .lv-rail__inlineLink {
@@ -667,9 +868,12 @@
 }
 .ta-chip__x:hover { opacity: 1; }
 
+/* "press 1-9 to apply · type to filter the rest" - was ink-4 (#b3ad9f),
+ * which against paper effectively disappeared at 11px. ink-3 holds the
+ * supporting-text role while remaining readable. */
 .lv-tag-input__hint {
   font-size: 11px;
-  color: var(--ink-4);
+  color: var(--ink-3);
   margin-top: 8px;
   font-family: var(--mono);
 }
@@ -677,7 +881,7 @@
 
 .lv-tag-cloud__empty {
   font-size: 12px;
-  color: var(--ink-4);
+  color: var(--ink-3);
   font-style: italic;
 }
 
@@ -728,12 +932,6 @@
   font-family: var(--mono);
 }
 .lv-nav kbd { margin-left: 4px; }
-
-.lv-bottombar__group {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
 
 /* full-bleed overlay (settings, tag mgmt) */
 
@@ -860,6 +1058,29 @@
   transition: left 0.12s;
 }
 .lv-toggle--on .lv-toggle__thumb { left: 20px; }
+
+/* Radio variant of the settings row (issue #55: layout + density choices). */
+.lv-overlay__settingsRow--stacked { flex-direction: column; align-items: stretch; gap: 10px; }
+.lv-overlay__radioGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-left: 4px;
+}
+.lv-overlay__radioRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--ink);
+  cursor: pointer;
+}
+.lv-overlay__radioRow input[type="radio"] {
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
 
 .lv-overlay__foot {
   border-top: 1px solid var(--rule);
@@ -1053,6 +1274,80 @@
   font-family: var(--mono);
   font-size: 10.5px;
   color: var(--ink-4);
+}
+
+/* kebab overflow menu (issue #55) - the v3.2 home for tools that used
+ * to clutter the inline top bar. Anchored to the ⋯ icon at the far
+ * right of `.lv-topbar__right`. The Find popover renders inside the
+ * same wrapper so it shares an anchor when triggered via Ctrl K. */
+
+.lv-kebabwrap { position: relative; }
+
+.ta-iconbtn--kebab {
+  font-size: 18px;
+  letter-spacing: 0;
+  line-height: 1;
+  padding: 4px 8px;
+  color: var(--ink-2);
+}
+.ta-iconbtn--kebab:hover { color: var(--ink); }
+
+.lv-kebab-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  min-width: 230px;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-md);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 4px 16px rgba(0, 0, 0, 0.06);
+  z-index: 30;
+  padding: 4px 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.lv-kebab-menu__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  padding: 8px 14px;
+  cursor: pointer;
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 13px;
+}
+.lv-kebab-menu__item:hover:not(:disabled) { background: var(--paper-2); }
+.lv-kebab-menu__item:disabled { color: var(--ink-4); cursor: not-allowed; }
+.lv-kebab-menu__item--sub { padding-left: 28px; font-size: 12.5px; color: var(--ink-2); }
+
+.lv-kebab-menu__count {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-3);
+  margin-left: 6px;
+}
+
+.lv-kebab-menu__caret {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink-3);
+}
+
+.lv-kebab-menu__rule {
+  border: 0;
+  border-top: 1px solid var(--rule);
+  margin: 4px 0;
+}
+
+.lv-kebab-menu__submenu {
+  display: flex;
+  flex-direction: column;
 }
 
 /* export menu */
@@ -1634,4 +1929,88 @@
   color: var(--ink);
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* ───── responsive collapse for the queue rail (issue #55) ─────
+ *
+ * Three breakpoints for three-pane layout:
+ *   ≥1280px : full three-pane (default rules above, no overrides).
+ *   1024-1280 : queue collapses to a 40px icon strip; only status dots
+ *               and the active highlight render. Filter, head, tags,
+ *               action bar, checkboxes are hidden because the strip is
+ *               too narrow to host them. Click any dot to jump.
+ *   <1024px  : queue is removed from the inline layout. The top-bar
+ *               `≡` toggle reveals it as a 320px slide-over drawer. The
+ *               drawer renders the full queue (filter, list, action bar)
+ *               so narrow viewports can still browse + batch.
+ *
+ * The decision rail is unchanged at every breakpoint: losing verdict /
+ * tag / note breaks the throughput claim.
+ */
+
+/* The queue toggle in the top bar appears only at <1024px. */
+.ta-iconbtn--queueToggle {
+  font-size: 18px;
+  letter-spacing: 0;
+  padding: 4px 8px;
+  display: none;
+}
+
+@media (max-width: 1279px) and (min-width: 1024px) {
+  .labeling-view[data-layout="three"] .lv-body {
+    grid-template-columns: 40px 1fr 380px;
+  }
+  .lv-leftnav { background: var(--paper-2); }
+  .lv-leftnav__head,
+  .lv-leftnav__filter,
+  .lv-leftnav__empty,
+  .lv-leftnav__actionBar,
+  .lv-leftnav__check,
+  .lv-leftnav__title,
+  .lv-leftnav__id,
+  .lv-leftnav__tags {
+    display: none;
+  }
+  .lv-leftnav__item {
+    grid-template-columns: 1fr;
+    padding: 0;
+  }
+  .lv-leftnav__rowBtn {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    padding: 8px 0;
+  }
+  .lv-leftnav__dot { margin: 0; }
+}
+
+@media (max-width: 1023px) {
+  /* Two-column body when the queue moves to a drawer. */
+  .labeling-view[data-layout="three"] .lv-body {
+    grid-template-columns: 1fr 380px;
+  }
+
+  /* Queue becomes a fixed slide-over. The 46/44 px insets keep it from
+   * overlapping the top and bottom bars (top bar 46, bottom bar 44 since
+   * the v3.2 slim-down). */
+  .lv-leftnav {
+    position: fixed;
+    top: 46px;
+    bottom: 44px;
+    left: 0;
+    width: 320px;
+    z-index: 40;
+    transform: translateX(-100%);
+    transition: transform 0.18s ease;
+    border-right: 1px solid var(--rule);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+  }
+  .lv-leftnav[data-drawer="open"] { transform: translateX(0); }
+
+  .ta-iconbtn--queueToggle { display: inline-flex; }
+}
+
+/* Below 1024px the kebab can still overflow the viewport on the right;
+ * cap the menu width so it doesn't push the page wider. */
+@media (max-width: 720px) {
+  .lv-kebab-menu { min-width: 200px; }
 }
