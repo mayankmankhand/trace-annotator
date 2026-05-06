@@ -219,9 +219,8 @@ export function AppShell() {
     <main aria-labelledby="ta-app-heading">
       {/*
         Visually hidden h1 so the labeling page has a top-level heading
-        (axe page-has-heading-one). The trace title is its own h1 inside
-        the trace pane; both are appropriate because the trace title is
-        the primary user-visible identification of the current trace.
+        (axe page-has-heading-one). The trace title is rendered as h2
+        inside the trace pane so the heading hierarchy stays h1 -> h2.
       */}
       <h1 id="ta-app-heading" className="sr-only">
         Trace Annotator - labeling view

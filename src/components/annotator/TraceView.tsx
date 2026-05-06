@@ -1390,7 +1390,6 @@ export function TraceView({
         idx={index}
         total={total}
         labeledCount={labeledCount}
-        unlabeledCount={unlabeledCount}
         canPrev={index > 0}
         canNext={index < total - 1}
         undoCount={undoCount}
@@ -1398,10 +1397,8 @@ export function TraceView({
         saveStatus={saveStatus}
         onPrev={() => go(-1)}
         onNext={() => go(1)}
-        onJumpUnlabeled={() => jumpToNextUnlabeled(index, annotationsRef.current)}
         onUndo={undoCount > 0 ? undo : undefined}
         onRedo={redoCount > 0 ? redo : undefined}
-        remainingSeconds={remainingSeconds}
       />
 
       <TagManagementPanel
@@ -1704,7 +1701,6 @@ function BottomBar(props: {
   idx: number;
   total: number;
   labeledCount: number;
-  unlabeledCount: number;
   canPrev: boolean;
   canNext: boolean;
   undoCount: number;
@@ -1712,10 +1708,8 @@ function BottomBar(props: {
   saveStatus: SaveStatus;
   onPrev: () => void;
   onNext: () => void;
-  onJumpUnlabeled: () => void;
   onUndo?: () => void;
   onRedo?: () => void;
-  remainingSeconds: number | null;
 }) {
   const {
     idx,
@@ -1815,11 +1809,10 @@ function validateHotkey(
   ) {
     return `${key} is reserved for navigation`;
   }
-  if (key === "Escape" || key === "Tab" || key === "?") {
-    return `${key} is reserved (overlay dismissal, focus, coaching toggle)`;
-  }
-  // Single visible character only - reject Function keys, Insert, Home,
-  // PageUp, etc. that fire inconsistently across OSes.
+  // Letter-only catch covers Escape, Tab, "?", Function keys, Insert,
+  // Home, PageUp, and other multi-char or punctuation keys that fire
+  // inconsistently across OSes or that the rest of the app already binds
+  // (Escape dismisses overlays, "?" toggles coaching, Tab moves focus).
   if (key.length !== 1 || !/[a-zA-Z]/.test(key)) {
     return "Pick a single letter A-Z";
   }

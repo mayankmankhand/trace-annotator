@@ -10,8 +10,9 @@
  * skipped             - (v3.1, optional) "needs review later" marker.
  *                       Independent of verdict so a user can mark a trace
  *                       skipped before deciding pass/fail. Absent on
- *                       existing v1/v2/v3 labels; CSV export drops it
- *                       (JSONL preserves it).
+ *                       existing v1/v2/v3 labels. JSONL preserves it
+ *                       verbatim; CSV writes it as the string "true" or
+ *                       empty so spreadsheet filters work.
  * tool_call_reviews   - (v3, optional) per-tool-call correctness verdict.
  *                       Keyed by the tool call's stable index (its position
  *                       in the trace's combined input+output message
