@@ -11,7 +11,7 @@
   --rule-2: #d6cfbe;
   --ink: #1a1814;
   --ink-2: #4a4640;
-  --ink-3: #807a70;
+  --ink-3: #6a655a;
   --ink-4: #b3ad9f;
 
   --accent: oklch(0.55 0.09 220);   /* muted teal-blue */
@@ -415,7 +415,7 @@ kbd {
   gap: 14px;
   font-family: var(--mono);
   font-size: 11px;
-  color: var(--ink-4);
+  color: var(--ink-3);
 }
 .wz-steps__item {
   display: inline-flex;
