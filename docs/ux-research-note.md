@@ -226,3 +226,30 @@ Plan: [plans/PLAN-v3.md](../plans/PLAN-v3.md). Release notes: [RELEASE-NOTES-v3.
 - Tool-call parser factored from `ToolCallRenderer.tsx` into `src/lib/trace/tool-calls.ts`. Same logic; both the renderer and the review panel now import from one source of truth.
 - `applyMapping` (`src/lib/trace/mapping.ts`) extended with `getFieldByPath`. Plain field names (no dot) take the existing direct-property fast path; dotted names walk the object. Existing v1/v2 wizard mappings unchanged; new adapters can target nested fields without flattening their files first.
 - LabelRow gained an optional `tool_call_reviews` field (snake_case to match existing v1/v2 export naming). JSONL export round-trips it; CSV export drops it (CSV writer enumerates explicit fields).
+
+---
+
+## 10. v3.1 / "Quiet Notebook" amendments (issue #53)
+
+Plan: [plans/PLAN-issue-53.md](../plans/PLAN-issue-53.md). Source: `Visual/Design Handoff.md`.
+
+### 10.1 Design decisions (rationale belongs here)
+
+- **Single design system end-to-end.** The pre-#53 surface was a Tailwind palette of blue, violet, green, red. v3.1 adopts the "Quiet Notebook" tokens (warm paper background, near-black ink, muted teal accent) across every visible surface. All accents share chroma and lightness; only hue varies. The reasoning: reading the trace is the focal act, so the chrome should never compete. CLAUDE.md design-decisions table updated to match.
+- **Restyle in place, not rebuild.** All logic in `lib/`, `hooks/`, the wizard parser, IndexedDB schema, undo dispatcher, similarity, and time-estimate is preserved verbatim. Only component markup, classes, and styling change. Reference JSX in `Visual/` is structural sketch, not production code.
+- **Tag surface consolidates 4 to 1.** v2/v3 had four overlapping tag surfaces (free-text input, recent-tags strip, bottom-bar quick-apply chips, datalist autocomplete). v3.1 collapses them to one: a single text input that doubles as the suggestion-cloud filter, with a 9-chip cloud of top-by-recency suggestions, each carrying a `1`-`9` hotkey badge. One source of truth, predictable affordance, no visual duplication. The bottom-bar quick-apply chips are gone; the recent strip is gone; the datalist is gone.
+- **Hotkey map expanded.** Quick-apply tags moved from `1-4` to `1-9`. New keys: `T` focuses the consolidated tag input; `U` jumps to next unlabeled (was `N`); `S` toggles skip; `Ctrl K` opens Find; `Ctrl Shift Z` redoes (companion to existing `Ctrl Z` undo). The Settings hotkey-rebind validator now reserves digits 1-9 (was 1-4) to match the cloud's hotkey budget.
+- **Coaching is independent of experienced mode.** Two distinct settings: "Coaching" (default on) and "Experienced mode" (default off). They do not co-vary. A beginner can hide tips; an experienced user can keep them. Storage key `ta:coaching-enabled:v1` separate from `ta:mode:v1`.
+- **No modals while labeling.** Settings and Tag management open as full-bleed overlays anchored to the right edge, not as dialogs over the trace. The friction-test rule from the handoff §8 (no breadcrumbs, no nested settings drawers, no toast notifications, no modals over labeling work) is honored across the new surfaces.
+- **Three new renderers, existing kept.** `RagRenderer` (query, retrieved chunks dimmed unless used, answer) and `SummarizerRenderer` (two-column source vs summary) win when `detect.ts` finds the right metadata. `AgentRenderer` wins on 2+ tool messages. The legacy `ChatRenderer`, `EmailRenderer`, `GenericRenderer`, and single-call `ToolCallRenderer` remain as fallbacks. None of the existing detect.ts thresholds for those renderers changed.
+- **Light theme only retained.** Variant C (dark "lab console") in the source CSS is stripped at copy-time, matching CLAUDE.md design-decisions table.
+- **Tailwind coexists during the migration.** Tailwind utilities still load via `@import "tailwindcss"` and a few wizard internals (notably the bulk-confirm dialog body) still use them. A "delete Tailwind" pass is left as cleanup once nothing imports it.
+
+### 10.2 Implementation fixes (touched the design surface but not decisions)
+
+- `Hotkeys` storage type gained `focusTag` (default `t`); `labelNext` default migrated from `n` to `u`. Older saved configs missing `focusTag` fall back to the default via the existing merge in `loadHotkeys()`.
+- `UndoEntry` already supported batch shape from v3; v3.1 adds a paired `redoStackRef` so `Ctrl+Shift+Z` replays an inverse without re-pushing onto the audit log. New user actions clear the redo stack (matches every editor's semantics).
+- `CoachingTip` exports a new `computeTaxonomyStats(allTags, tagCounts)` that returns `{uniqueTags, usedOnce, nearDuplicates}` for milestone-card stats. Near-duplicate detection is a cheap edit-distance pass (lowercase + 3-char prefix + |Δlen|≤2 + ≤2 char diffs); good enough to flag the typical "wrong-date / wrong-dates / wrong_date" trio without pulling in a real similarity library.
+- Note edits debounce undo capture: a single before/after entry is pushed on blur, not on every keystroke. Without this, a single sentence flooded the undo stack and Cmd+Z was unusable.
+- `ExportButton` gained click-outside and Esc dismiss so the menu does not leak focus when the user clicks elsewhere.
+- `EmailRenderer` is kept (not in the handoff's first-class renderer table) but rebuilt on the new tokens. detect.ts continues to surface it on `From:/To:/Subject:` headers.

@@ -7,22 +7,37 @@ import { ChatRenderer } from "./ChatRenderer";
 import { EmailRenderer } from "./EmailRenderer";
 import { ToolCallRenderer } from "./ToolCallRenderer";
 import { GenericRenderer } from "./GenericRenderer";
+import { RagRenderer } from "./RagRenderer";
+import { AgentRenderer } from "./AgentRenderer";
+import { SummarizerRenderer } from "./SummarizerRenderer";
 
 type Props = {
   trace: Trace;
   showJsonDefault?: boolean;
   collapseSystem?: boolean;
+  dense?: boolean;
 };
 
-export function TraceRenderer({ trace, showJsonDefault = false, collapseSystem = false }: Props) {
+export function TraceRenderer({
+  trace,
+  showJsonDefault = false,
+  collapseSystem = false,
+  dense = false,
+}: Props) {
   const [showJson, setShowJson] = useState(showJsonDefault);
   const rendererType = detectRenderer(trace);
   const allMessages = [...trace.input, ...trace.output];
 
   return (
-    <div className="space-y-4">
+    <div className="trace-renderer">
       <div>
-        {rendererType === "chat" && <ChatRenderer messages={allMessages} collapseSystem={collapseSystem} />}
+        {rendererType === "chat" && (
+          <ChatRenderer
+            messages={allMessages}
+            collapseSystem={collapseSystem}
+            dense={dense}
+          />
+        )}
         {rendererType === "email" && (
           <EmailRenderer
             promptMessages={trace.input}
@@ -32,20 +47,19 @@ export function TraceRenderer({ trace, showJsonDefault = false, collapseSystem =
         {rendererType === "tool-call" && (
           <ToolCallRenderer messages={allMessages} />
         )}
+        {rendererType === "rag" && <RagRenderer trace={trace} />}
+        {rendererType === "agent" && <AgentRenderer trace={trace} />}
+        {rendererType === "summarizer" && <SummarizerRenderer trace={trace} />}
         {rendererType === "generic" && <GenericRenderer trace={trace} />}
       </div>
 
       <details
-        className="rounded border bg-gray-50 text-xs"
+        className="trace-renderer__json"
         open={showJson}
         onToggle={(e) => setShowJson((e.target as HTMLDetailsElement).open)}
       >
-        <summary className="cursor-pointer select-none px-3 py-2 text-gray-600 hover:text-gray-900">
-          {showJson ? "Hide" : "Show"} raw JSON
-        </summary>
-        <pre className="max-h-64 overflow-auto px-3 pb-3 font-mono text-gray-800">
-          {JSON.stringify(trace, null, 2)}
-        </pre>
+        <summary>{showJson ? "hide" : "show"} raw JSON</summary>
+        <pre>{JSON.stringify(trace, null, 2)}</pre>
       </details>
     </div>
   );

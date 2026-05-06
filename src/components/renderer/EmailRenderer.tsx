@@ -2,6 +2,11 @@
 
 import type { Message } from "@/lib/trace/types";
 
+// EmailRenderer (issue #53). Quiet Notebook restyle. Email is not in the
+// handoff's first-class renderer table but it ships in v2 and the parser
+// is content-detected, so we keep it behind detect.ts and just retoken
+// the styling.
+
 type Props = {
   promptMessages: Message[];
   emailContent: string;
@@ -51,53 +56,53 @@ export function EmailRenderer({ promptMessages, emailContent }: Props) {
   const hasAnyHeader = from ?? to ?? subject;
 
   return (
-    <div className="space-y-4">
+    <div className="email-trace">
       {promptMessages.length > 0 && (
-        <div className="space-y-2">
-          <p className="text-[10px] uppercase tracking-wide text-gray-400 font-medium">
-            Prompt
-          </p>
+        <div className="email-trace__prompt">
+          <div className="email-trace__sectionLabel">prompt</div>
           {promptMessages.map((m, i) => (
-            <div key={i} className="rounded-lg bg-blue-600 px-4 py-3 text-sm text-white whitespace-pre-wrap break-words max-w-[85%] ml-auto">
-              <div className="text-[10px] uppercase tracking-wide mb-1 text-blue-200 font-medium">
-                {m.role}
+            <div key={i} className="trace-msg chat-trace__turn">
+              <div className="chat-trace__pill">
+                <span className="role-pill" data-role={m.role}>
+                  {m.role}
+                </span>
               </div>
-              <div className="max-h-48 overflow-auto">{m.content}</div>
+              <div className="trace-msg__body trace-msg__body--serif">
+                {m.content}
+              </div>
             </div>
           ))}
         </div>
       )}
 
-      <div>
-        <p className="text-[10px] uppercase tracking-wide text-gray-400 font-medium mb-2">
-          Generated email
-        </p>
-        <div className="rounded-lg border border-gray-200 overflow-hidden">
+      <div className="email-trace__email">
+        <div className="email-trace__sectionLabel">generated email</div>
+        <div className="email-trace__envelope">
           {hasAnyHeader && (
-            <div className="bg-gray-50 border-b border-gray-200 px-4 py-3 space-y-1">
+            <div className="email-trace__headers">
               {from && (
-                <div className="flex gap-2 text-sm">
-                  <span className="text-gray-500 w-14 shrink-0">From:</span>
-                  <span className="text-gray-900">{from}</span>
+                <div className="email-trace__headerRow">
+                  <span className="email-trace__headerKey">From:</span>
+                  <span className="email-trace__headerVal">{from}</span>
                 </div>
               )}
               {to && (
-                <div className="flex gap-2 text-sm">
-                  <span className="text-gray-500 w-14 shrink-0">To:</span>
-                  <span className="text-gray-900">{to}</span>
+                <div className="email-trace__headerRow">
+                  <span className="email-trace__headerKey">To:</span>
+                  <span className="email-trace__headerVal">{to}</span>
                 </div>
               )}
               {subject && (
-                <div className="flex gap-2 text-sm">
-                  <span className="text-gray-500 w-14 shrink-0">Subject:</span>
-                  <span className="text-gray-900 font-medium">{subject}</span>
+                <div className="email-trace__headerRow">
+                  <span className="email-trace__headerKey">Subject:</span>
+                  <span className="email-trace__headerVal email-trace__headerVal--bold">
+                    {subject}
+                  </span>
                 </div>
               )}
             </div>
           )}
-          <div className="px-4 py-4">
-            <p className="text-sm text-gray-900 whitespace-pre-wrap">{body}</p>
-          </div>
+          <div className="email-trace__body">{body}</div>
         </div>
       </div>
     </div>

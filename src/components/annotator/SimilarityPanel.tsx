@@ -3,13 +3,15 @@
 // SimilarityPanel (v3, #37 power analysis - similarity highlighting).
 //
 // Lazily computes string-based similarity (TF-IDF + cosine) when the user
-// clicks "Show similar traces". The first click for a given file builds an
+// clicks "show similar traces". The first click for a given file builds an
 // index over every trace; subsequent clicks reuse the cached index from
 // src/lib/similarity.ts. Lazy because computing the index for a few thousand
 // traces takes a noticeable beat - we don't want every file load to pay it.
 //
-// Lives in the right decision panel, gated by experienced mode AND the
+// Lives in the right decision rail, gated by experienced mode AND the
 // trace set being large enough to bother (>1 trace).
+//
+// Restyled for issue #53 to use Quiet Notebook tokens.
 
 import { useEffect, useRef, useState } from "react";
 import { findSimilar } from "@/lib/similarity";
@@ -53,11 +55,11 @@ export function SimilarityPanel({
   function compute() {
     const myReq = ++requestRef.current;
     setState({ kind: "computing" });
-    // Defer to next tick so the "Computing..." state actually paints before
-    // we block on TF-IDF. For small files this is invisible; for thousands
-    // of traces it gives the user feedback that something is happening.
+    // Defer to next tick so the "Computing..." state actually paints
+    // before we block on TF-IDF. For small files this is invisible; for
+    // thousands of traces it gives feedback that something is happening.
     setTimeout(() => {
-      if (requestRef.current !== myReq) return; // user moved on; abandon
+      if (requestRef.current !== myReq) return;
       try {
         const results = findSimilar(fingerprint, traces, currentTraceId, 5);
         if (requestRef.current !== myReq) return;
@@ -76,42 +78,37 @@ export function SimilarityPanel({
   }
 
   return (
-    <div>
-      <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
-        Similarity
-      </h3>
+    <div className="lv-similar">
+      <div className="lv-rail__label">similarity</div>
       {state.kind === "idle" || state.kind === "computing" ? (
         <button
           type="button"
           onClick={compute}
           disabled={state.kind === "computing"}
-          className="w-full px-3 py-2 text-sm font-medium rounded border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+          className="lv-nav lv-similar__cta"
         >
-          {state.kind === "computing" ? "Computing..." : "Show similar traces"}
+          {state.kind === "computing" ? "computing..." : "show similar traces"}
         </button>
       ) : state.kind === "error" ? (
-        <div className="space-y-2">
-          <p
-            role="alert"
-            className="text-xs text-red-700 rounded border border-red-200 bg-red-50 px-2 py-1.5"
-          >
+        <div className="lv-similar__errorWrap">
+          <p role="alert" className="lv-similar__error">
             {state.message}
           </p>
           <button
             type="button"
             onClick={compute}
-            className="w-full px-3 py-1.5 text-xs font-medium rounded border border-gray-300 text-gray-700 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            className="lv-nav lv-similar__cta"
           >
-            Try again
+            try again
           </button>
         </div>
       ) : state.results.length === 0 ? (
-        <p className="text-xs text-gray-500">
+        <p className="lv-similar__empty">
           No similar traces found. Either the current trace is unique or the
           others share too little vocabulary with it.
         </p>
       ) : (
-        <ul className="space-y-1">
+        <ul className="lv-similar__list">
           {state.results.map((r) => (
             <li key={r.traceId}>
               <SimilarItem
@@ -127,10 +124,6 @@ export function SimilarityPanel({
   );
 }
 
-// One row in the similar-traces list. Shows the trace ID, a short preview of
-// the user message (so the reviewer can tell what's similar before clicking),
-// and the similarity score. Falls back to ID-only if the trace can't be found
-// in the current set (e.g. a stale cache entry).
 function SimilarItem({
   result,
   trace,
@@ -142,22 +135,18 @@ function SimilarItem({
 }) {
   const preview = trace ? firstUserMessagePreview(trace) : "";
   return (
-    <button
-      type="button"
-      onClick={onJump}
-      className="w-full flex flex-col gap-0.5 px-2 py-1.5 text-xs rounded border border-gray-200 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 text-left"
-    >
-      <div className="flex items-center justify-between gap-2">
-        <span className="font-mono text-gray-800 truncate">
-          {result.traceId}
-        </span>
-        <span className="text-gray-500 tabular-nums shrink-0">
-          {result.score.toFixed(2)}
-        </span>
-      </div>
-      {preview && (
-        <div className="text-gray-500 truncate text-[11px]">{preview}</div>
-      )}
+    <button type="button" onClick={onJump} className="lv-similar__row">
+      <span
+        className="lv-similar-row__bar"
+        aria-hidden="true"
+        title={`Similarity score: ${result.score.toFixed(2)}`}
+      >
+        <span style={{ width: `${Math.min(100, result.score * 100)}%` }} />
+      </span>
+      <span className="lv-similar-row__title">
+        {preview || result.traceId}
+      </span>
+      <span className="lv-similar-row__id">{result.traceId}</span>
     </button>
   );
 }
@@ -168,7 +157,6 @@ function firstUserMessagePreview(trace: Trace): string {
       return m.content.trim().slice(0, 60);
     }
   }
-  // Fall back to first non-empty input message of any role
   for (const m of trace.input) {
     if (m.content.trim()) return m.content.trim().slice(0, 60);
   }

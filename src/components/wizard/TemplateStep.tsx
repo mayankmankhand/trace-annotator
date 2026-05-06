@@ -2,10 +2,7 @@
 
 import type { TemplateChoice } from "@/lib/storage";
 
-// One-time "what kind of app is this?" prompt. Shown only on the user's
-// first session (saved choice persists in localStorage).  Drives which
-// example failure-mode tags get suggested in the tag panel; the teaching
-// arc itself is shared across all template choices. See docs/coaching-arc.md.
+// TemplateStep (issue #53). Quiet Notebook restyle.
 
 type Props = {
   onChoose: (choice: TemplateChoice) => void;
@@ -43,29 +40,25 @@ const OPTIONS: {
 
 export function TemplateStep({ onChoose }: Props) {
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-lg font-semibold text-gray-900">
-          What kind of app is this?
-        </h2>
-        <p className="text-sm text-gray-600 mt-1">
-          We&apos;ll suggest a few example failure-mode tags that match - you
-          can use them, ignore them, or write your own. This question is asked
-          once.
+    <div className="wz-step">
+      <div className="wz-step__head">
+        <h2 className="wz-step__title">What kind of app is this?</h2>
+        <p className="wz-step__hint">
+          We&apos;ll suggest a few example failure-mode tags that match. You
+          can use them, ignore them, or write your own. This question is
+          asked once.
         </p>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="wz-template__grid">
         {OPTIONS.map((opt) => (
           <button
             key={opt.id}
             type="button"
             onClick={() => onChoose(opt.id)}
-            className="text-left rounded-lg border border-gray-200 p-4 hover:border-blue-400 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            className="wz-template__card"
           >
-            <div className="text-sm font-semibold text-gray-900">{opt.title}</div>
-            <div className="text-xs text-gray-600 mt-1 leading-relaxed">
-              {opt.blurb}
-            </div>
+            <span className="wz-template__cardTitle">{opt.title}</span>
+            <span className="wz-template__cardBlurb">{opt.blurb}</span>
           </button>
         ))}
       </div>

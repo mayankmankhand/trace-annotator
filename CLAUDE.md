@@ -126,28 +126,31 @@ These come from established HCI practice and underpin every v1 feature. Preserve
 
 ## Design Decisions
 
-Locked-in v1 visual and interaction choices. Apply consistently across new components. Full rationale in [docs/ux-research-note.md](docs/ux-research-note.md). Do not re-litigate these without amending the research note first.
+Locked-in visual and interaction choices for the "Quiet Notebook" system (v3.1, issue #53). Apply consistently across new components. Full rationale in [docs/ux-research-note.md](docs/ux-research-note.md) §10. Do not re-litigate these without amending the research note first.
 
 | Area | Decision |
 |---|---|
-| Layout | 75/25 split. Trace content fills the left 75% in a single centered column. The right 25% panel is the per-trace decision surface: Pass / Fail / Skip, Failure mode tags + Note, Previous / Next / Label-next. No left list sidebar. Session-level tools live in the top bar so they don't compete with verdict actions. |
-| Top bar | Always visible. Left: logo + "Load new file". Center: "Trace X of Y" counter and "X of Y labeled" subline. Right: tools row carrying ? tips (when not active), Find (popover), Tags (count), Undo (count), Settings, save status, and Export. Find opens a popover combining filter, jump-to-#, and random sample. |
-| Bottom bar | Always visible. Carries quick-apply tag chips (top 4 most-recent) and keyboard hints (`P` Pass, `F` Fail, arrows Navigate, `Enter` Next, `N` Label next, `1-4` Tag). |
-| Density | Medium. Trace body fills ~70-80% of viewport height. No internal scrolling for typical chat turns. Metadata and "Show JSON" collapsed by default. |
-| Theme | Light only in v1. Background `bg-gray-50`, surfaces `bg-white`. No dark mode. |
-| Primary text | `text-gray-900`. Secondary `text-gray-600`. Muted `text-gray-400`. |
-| Accent color | Blue (`bg-blue-600` / `text-blue-700` / borders `border-blue-300`) for primary actions and the "Label next" CTA. |
-| Pass / Fail | Pass uses green (`bg-green-600` active, `bg-green-100`/`text-green-800` badge). Fail uses red (`bg-red-600` active, `bg-red-100`/`text-red-800` badge). |
-| Edited indicator | Orange (`bg-orange-100` / `text-orange-700`) chip in trace header. |
-| Tags | Violet (`bg-violet-100` / `text-violet-800` chips, `bg-violet-600` active). Quick-apply chips show `[1]`-`[4]` keyboard hint inline. |
-| Chat bubbles | User right-aligned in blue (`bg-blue-600 text-white`). Assistant left-aligned in light gray (`bg-gray-100 border-gray-200`). System centered, italic, collapsible. Tool calls full-width monospace card. Matches iMessage / WhatsApp / ChatGPT convention. |
-| Coaching tips | Blue card (`bg-blue-50 border-blue-200`) on traces 1-5. Dismissible per session and globally. Re-trigger via "? tips" in top bar. |
+| Layout | 2-pane. Trace pane scrolls; 380px decision rail on the right is sticky. 46px top bar, 38px bottom bar. The rail is the per-trace decision surface (Verdict, Tags, Note, Coaching/Similar). Session-level tools live in the top bar. |
+| Top bar | Left: file/template chip. Center: progress bar + tabular `idx / total` + `X labeled`. Right: tools row (jump-to-next-unlabeled, Find, Tags, Export, Settings, Save status). Find opens a popover combining filter, jump-to-#, and random sample. |
+| Bottom bar | Prev / Next / counter, then Undo / Redo, save status, labeled count. Quick-apply tag chips are gone; the consolidated rail input replaces them. |
+| Density | Medium. Trace body fills the pane; no internal scrolling for typical chat turns. Metadata and raw JSON collapsed by default. |
+| Theme | Light only. `--paper #faf8f4`, `--ink #1a1814`. No dark mode. |
+| Color tokens | All accents share chroma + lightness; only hue varies. `--accent` is muted teal-blue (oklch 0.55 0.09 220). `--pass` muted green (oklch 0.55 0.09 150). `--fail` muted red (oklch 0.55 0.13 30). `--warn` warm yellow (oklch 0.65 0.10 75). |
+| Typography | IBM Plex Sans for chrome (buttons, labels). Newsreader (serif) for trace prose, headlines, summary text. IBM Plex Mono for keys, IDs, metadata, scores. |
+| Pass / Fail / Skip | Tri-state `.verdict-btn[data-active=pass\|fail\|skip]`. Pass = green-soft fill, Fail = red-soft fill, Skip = paper-3 fill, all with hairline borders. |
+| Edited indicator | Warm-yellow chip (oklch 0.94 0.05 75 background) in the trace header. |
+| Tags | Single text input that doubles as the suggestion-cloud filter. The cloud shows the top 9 by recency/count, each with a `1`-`9` hotkey badge. Applied tags render as accent-soft chips with an "x" remove affordance. |
+| Hotkeys | `P/F/S` Pass/Fail/Skip, `T` focus tag input, `U` jump-to-next-unlabeled, `1`-`9` apply visible suggestion, arrows Prev/Next, `Ctrl K` Find, `Ctrl Z` Undo, `Ctrl Shift Z` Redo, `Esc` exit batch / dismiss overlay. Mac shows the same Ctrl labels (the chord works as Cmd on Mac). Letter keys are user-rebindable in Settings. |
+| Chat bubbles | Role pill metadata above the message body. Trace prose renders in Newsreader; system / tool prose renders in mono. 22px gap between turns. Long system prompts collapse behind a disclosure summary. |
+| Coaching tips | Warm-yellow `.coach-card` rendered inside `.lv-rail__section`, never blocking the trace. Independent setting from experienced mode (`ta:coaching-enabled:v1`). Default on. Re-trigger via `?` or "? tips" in the top bar. |
+| Modals | Settings and Tag management open as right-edge sheets (max 720px wide), not popups over labeling work. ConfirmDialog uses a centered shell for destructive flows that already happen inside an overlay (e.g. tag merge / delete). Bulk-verdict overwrite is the one mid-labeling exception and is gated behind a ConfirmDialog because the blast radius needs explicit acknowledgement. |
 
-**Deferred to v2 (do not add in v1):**
-- Dark mode
+**Deferred:**
+- Dark mode (variant C explicitly out of scope)
 - Color-accessibility cue alongside pass/fail color (icon or shape redundancy)
 - Multi-turn chat pagination ("show first 5 turns" + load more)
 - Mobile / small-screen layout
+- Full Tailwind removal (utilities still coexist where the wizard internals used them)
 
 ## Skills
 
