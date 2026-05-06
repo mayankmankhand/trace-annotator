@@ -99,25 +99,20 @@ export function PreviewStep({
         </div>
       )}
       {/*
-        Show the envelope/nested-message confidence banner alongside the
-        adapter banner when both apply - the user benefits from knowing
-        the adapter unwrapped a wrapper or used a nested messages array,
-        not just that the adapter ran.
+        Confidence banner pairs with viaAdapter when the adapter unwrapped
+        a wrapper or used a nested messages array (the user benefits from
+        seeing what the adapter actually did). When no adapter ran, this
+        is the primary auto-detect signal. The two branches do not
+        overlap.
       */}
-      {autoRecognized && (envelopeKey || usedNestedMessages) && (
-        <ConfidenceBanner
-          count={traces.length}
-          envelopeKey={envelopeKey}
-          usedNestedMessages={usedNestedMessages}
-        />
-      )}
-      {!viaAdapter && autoRecognized && !envelopeKey && !usedNestedMessages && (
-        <ConfidenceBanner
-          count={traces.length}
-          envelopeKey={envelopeKey}
-          usedNestedMessages={usedNestedMessages}
-        />
-      )}
+      {autoRecognized &&
+        (!viaAdapter || envelopeKey || usedNestedMessages) && (
+          <ConfidenceBanner
+            count={traces.length}
+            envelopeKey={envelopeKey}
+            usedNestedMessages={usedNestedMessages}
+          />
+        )}
 
       <div className="wz-preview">
         <TraceRenderer trace={first} />
