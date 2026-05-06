@@ -289,24 +289,17 @@ export function Wizard({
   }
 
   return (
-    <div className="w-full max-w-2xl">
+    <div className="wz-shell">
       <StepIndicator current={step} />
 
-      <div className="mt-6 rounded-lg border bg-white p-6 shadow-sm">
+      <div className="wz-card">
         {error && (
-          <div
-            role="alert"
-            aria-live="assertive"
-            className="mb-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-800 whitespace-pre-line"
-          >
+          <div role="alert" aria-live="assertive" className="wz-banner wz-banner--error">
             {error}
           </div>
         )}
         {adapterIssue && !error && (
-          <div
-            role="alert"
-            className="mb-4 rounded border-2 border-red-300 bg-red-50 p-3 text-xs text-red-800 flex items-start justify-between gap-3"
-          >
+          <div role="alert" className="wz-banner wz-banner--error wz-banner--strong">
             <div>
               <strong>Custom adapter not applied.</strong> {adapterIssue}{" "}
               The wizard is back, so you can map fields manually. To stop
@@ -318,52 +311,42 @@ export function Wizard({
                 clearAdapter();
                 setAdapterIssue(null);
               }}
-              className="shrink-0 px-2 py-1 text-xs font-medium rounded bg-red-600 text-white hover:bg-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+              className="lv-nav lv-nav--primary wz-banner__action"
             >
               Clear adapter
             </button>
           </div>
         )}
         {warning && !error && !adapterIssue && (
-          <div
-            role="status"
-            aria-live="polite"
-            className="mb-4 rounded border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800"
-          >
+          <div role="status" aria-live="polite" className="wz-banner wz-banner--warn">
             {warning}
           </div>
         )}
 
         {step === "drop" && (
-          <div className="space-y-4">
-            <p className="text-sm text-gray-600">
+          <div className="wz-step">
+            <p className="wz-step__hint">
               Drop a JSONL, JSON, or CSV file of LLM traces to get started.
             </p>
             <DropZone onFile={handleFile} disabled={parsing !== null} />
             {parsing ? (
-              <p
-                role="status"
-                aria-live="polite"
-                className="text-sm text-gray-600"
-              >
+              <p role="status" aria-live="polite" className="wz-step__hint">
                 Reading {parsing}...
               </p>
             ) : (
               <>
-                <p className="text-xs text-gray-500">
+                <p className="wz-step__hintMono">
                   No file ready? Try{" "}
-                  <span className="font-mono">
-                    sample-data/recipe-chatbot-results.json
-                  </span>{" "}
+                  <code>sample-data/recipe-chatbot-results.json</code>{" "}
                   from the repo to see how it works.
                 </p>
-                <p className="text-xs text-gray-500">
+                <p className="wz-step__hintMono">
                   No data leaves your browser. Supported shapes:{" "}
                   <a
                     href="https://github.com/mayankmankhand/Observability/blob/main/docs/supported-inputs.md"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="underline hover:text-gray-800"
+                    className="wz-link"
                   >
                     docs/supported-inputs.md
                   </a>
@@ -422,7 +405,7 @@ function StepIndicator({ current }: { current: Step }) {
       ? STEPS.length - 1
       : visibleSteps.findIndex((s) => s.id === current);
   return (
-    <ol aria-label="Wizard progress" className="flex gap-3 text-xs text-gray-500">
+    <ol aria-label="Wizard progress" className="wz-steps">
       {visibleSteps.map((s, i) => {
         const done = i < currentIdx;
         const active = s.id === current;
@@ -430,16 +413,10 @@ function StepIndicator({ current }: { current: Step }) {
           <li
             key={s.id}
             aria-current={active ? "step" : undefined}
-            className={
-              active
-                ? "font-semibold text-gray-900"
-                : done
-                  ? "text-green-700"
-                  : ""
-            }
+            className={`wz-steps__item${active ? " wz-steps__item--active" : ""}${done ? " wz-steps__item--done" : ""}`}
           >
-            {done ? "✓ " : `${i + 1}. `}
-            {s.label}
+            <span className="wz-steps__num">{done ? "✓" : i + 1}</span>
+            <span>{s.label}</span>
           </li>
         );
       })}

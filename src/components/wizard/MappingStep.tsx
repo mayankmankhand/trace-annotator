@@ -68,15 +68,13 @@ export function MappingStep({
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-lg font-semibold text-gray-900">
-          Map your fields
-        </h2>
-        <p className="text-sm text-gray-600 mt-1">
-          Tell us where the conversation lives in your file. If you&apos;ve never
-          opened a trace file before, that&apos;s fine - the detected paths and
-          structure preview below will get you there.
+    <div className="wz-step">
+      <div className="wz-step__head">
+        <h2 className="wz-step__title">Map your fields</h2>
+        <p className="wz-step__hint">
+          Tell us where the conversation lives in your file. If you&apos;ve
+          never opened a trace file before, that&apos;s fine - the detected
+          paths and structure preview below will get you there.
         </p>
       </div>
 
@@ -124,17 +122,15 @@ export function MappingStep({
         allowNone
       />
 
-      <label className="flex items-start gap-2 text-sm text-gray-700">
+      <label className="wz-passthrough">
         <input
           type="checkbox"
           checked={metadataPassthrough}
           onChange={(e) => setMetadataPassthrough(e.target.checked)}
-          className="mt-1"
         />
         <span>
           Keep the other fields as metadata on each trace.
-          <br />
-          <span className="text-gray-500">
+          <span className="wz-passthrough__sub">
             Useful if your file has extra fields you may want to filter or
             group by later.
           </span>
@@ -148,13 +144,9 @@ export function MappingStep({
         onAssistantAlias={setAssistantAlias}
       />
 
-      <div className="flex justify-between pt-4 border-t">
-        <button
-          type="button"
-          onClick={onBack}
-          className="px-4 py-2 text-sm text-gray-700 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded"
-        >
-          Back
+      <div className="wz-step__foot">
+        <button type="button" onClick={onBack} className="lv-nav">
+          back
         </button>
         <button
           type="button"
@@ -169,9 +161,9 @@ export function MappingStep({
               ...(roleAliases.length > 0 ? { roleAliases } : {}),
             });
           }}
-          className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+          className="lv-nav lv-nav--primary"
         >
-          Preview
+          preview
         </button>
       </div>
     </div>
@@ -202,64 +194,57 @@ function DetectedPaths({
   onUseForOutput: (path: string) => void;
 }) {
   return (
-    <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 space-y-3">
-      <p className="text-sm font-semibold text-blue-900">
+    <div className="wz-banner wz-banner--info wz-detected">
+      <p className="wz-banner__title">
         Found {paths.length}{" "}
         {paths.length === 1 ? "place" : "places"} in your file that look
         like message arrays. Click one to fill the fields below.
       </p>
-      <ul className="space-y-2">
+      <ul className="wz-detected__list">
         {paths.map((p) => (
-          <li
-            key={p.path}
-            className="rounded border border-blue-200 bg-white px-3 py-2 text-xs"
-          >
-            <div className="flex items-center gap-2 flex-wrap mb-1">
-              <code className="font-mono font-semibold text-blue-900">
-                {p.path}
-              </code>
-              <span className="text-gray-600">
+          <li key={p.path} className="wz-detected__item">
+            <div className="wz-detected__head">
+              <code className="wz-detected__path">{p.path}</code>
+              <span className="wz-detected__size">
                 {p.size} message{p.size === 1 ? "" : "s"}
               </span>
               {p.hasAssistant && (
-                <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-medium text-green-800">
+                <span className="ta-chip wz-detected__chip wz-detected__chip--ok">
                   has assistant turn
                 </span>
               )}
               {!p.hasAssistant && p.hasUser && (
-                <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-700">
-                  user only
-                </span>
+                <span className="ta-chip wz-detected__chip">user only</span>
               )}
             </div>
-            <div className="flex gap-2 flex-wrap">
+            <div className="wz-detected__actions">
               <button
                 type="button"
                 onClick={() => onUseForBoth(p.path)}
                 title="Recommended for full-conversation arrays. Wizard splits the conversation at the last assistant turn."
-                className="px-2 py-1 text-[11px] font-medium rounded bg-blue-600 text-white hover:bg-blue-700"
+                className="lv-nav lv-nav--primary"
               >
-                Use for both fields
+                use for both
               </button>
               <button
                 type="button"
                 onClick={() => onUseForInput(p.path)}
-                className="px-2 py-1 text-[11px] font-medium rounded border border-blue-300 text-blue-700 hover:bg-blue-100"
+                className="lv-nav"
               >
-                Use for input
+                use for input
               </button>
               <button
                 type="button"
                 onClick={() => onUseForOutput(p.path)}
-                className="px-2 py-1 text-[11px] font-medium rounded border border-blue-300 text-blue-700 hover:bg-blue-100"
+                className="lv-nav"
               >
-                Use for output
+                use for output
               </button>
             </div>
           </li>
         ))}
       </ul>
-      <p className="text-[11px] text-blue-800">
+      <p className="wz-banner__body">
         <strong>Tip:</strong> if a path has &ldquo;has assistant turn&rdquo;,
         it&apos;s the full conversation - &ldquo;Use for both&rdquo; is usually
         right.
@@ -273,20 +258,15 @@ function DetectedPaths({
 // JSON file by hand. Bounded depth and length to stay usable on huge rows.
 function StructurePreview({ firstRow }: { firstRow: Record<string, unknown> }) {
   return (
-    <details className="group rounded-lg border border-gray-200 bg-gray-50 p-3">
-      <summary className="cursor-pointer text-sm font-medium text-gray-700 list-none flex items-center gap-1 select-none">
-        <span className="text-gray-400 group-open:rotate-90 transition-transform inline-block">
-          &#9654;
-        </span>
+    <details className="wz-structure">
+      <summary className="wz-structure__summary">
         First row structure (click to expand)
       </summary>
-      <div className="mt-3 text-xs">
-        <p className="text-gray-600 mb-2">
+      <div className="wz-structure__body">
+        <p className="wz-structure__hint">
           Each line shows a path you can copy into the field boxes.
         </p>
-        <pre className="whitespace-pre-wrap font-mono text-[11px] text-gray-800 bg-white border border-gray-200 rounded px-3 py-2 max-h-80 overflow-auto">
-          {renderStructure(firstRow)}
-        </pre>
+        <pre className="wz-structure__pre">{renderStructure(firstRow)}</pre>
       </div>
     </details>
   );
@@ -354,19 +334,19 @@ function RoleAliasSection({
   onAssistantAlias,
 }: RoleAliasSectionProps) {
   return (
-    <details className="group">
-      <summary className="cursor-pointer text-sm font-medium text-gray-700 list-none flex items-center gap-1 select-none">
-        <span className="text-gray-400 group-open:rotate-90 transition-transform inline-block">&#9654;</span>
+    <details className="wz-aliases">
+      <summary className="wz-aliases__summary">
         Role name mapping
-        <span className="ml-1 text-xs font-normal text-gray-400">(optional)</span>
+        <span className="wz-aliases__optional">(optional)</span>
       </summary>
-      <div className="mt-3 space-y-3 pl-4">
-        <p className="text-xs text-gray-500">
-          If your data uses different names for message roles - like &ldquo;human&rdquo; instead
-          of &ldquo;user&rdquo;, or &ldquo;AI&rdquo; instead of &ldquo;assistant&rdquo; - enter your names here.
-          Leave blank if your data already uses the standard names.
+      <div className="wz-aliases__body">
+        <p className="wz-aliases__hint">
+          If your data uses different names for message roles - like
+          &ldquo;human&rdquo; instead of &ldquo;user&rdquo;, or &ldquo;AI&rdquo;
+          instead of &ldquo;assistant&rdquo; - enter your names here. Leave
+          blank if your data already uses the standard names.
         </p>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="wz-aliases__grid">
           <AliasInput
             label='Your name for "user"'
             placeholder="e.g. human"
@@ -398,8 +378,8 @@ function AliasInput({
 }) {
   const id = useId();
   return (
-    <div>
-      <label htmlFor={id} className="block text-xs font-medium text-gray-700 mb-1">
+    <div className="wz-field">
+      <label htmlFor={id} className="wz-field__label">
         {label}
       </label>
       <input
@@ -408,7 +388,7 @@ function AliasInput({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+        className="wz-field__input"
       />
     </div>
   );
@@ -446,27 +426,22 @@ function FieldPicker({
     ? preview(getFieldByPath(firstRow, value))
     : null;
   return (
-    <div>
-      <label
-        htmlFor={inputId}
-        className="block text-sm font-medium text-gray-800"
-      >
+    <div className="wz-field">
+      <label htmlFor={inputId} className="wz-field__label">
         {label}
-        {required && <span className="text-red-600"> *</span>}
+        {required && <span className="wz-field__required"> *</span>}
       </label>
-      <p id={helperId} className="text-xs text-gray-500 mt-0.5">
+      <p id={helperId} className="wz-field__helper">
         {helper} Pick a top-level field, or type a dotted path like{" "}
-        <code className="font-mono">request.messages</code> to dig into
-        nested objects.
+        <code>request.messages</code> to dig into nested objects.
       </p>
-      <div className="mt-2 flex items-center gap-2">
+      <div className="wz-field__row">
         {allowNone && (
-          <label className="inline-flex items-center gap-1 text-xs text-gray-600 cursor-pointer">
+          <label className="wz-field__checkbox">
             <input
               type="checkbox"
               checked={isNone}
               onChange={(e) => onChange(e.target.checked ? NONE : "")}
-              className="h-3.5 w-3.5"
             />
             <span>Use row numbers</span>
           </label>
@@ -483,7 +458,7 @@ function FieldPicker({
           placeholder={
             isNone ? "Using row numbers" : "Choose or type a field path..."
           }
-          className="flex-1 rounded border border-gray-300 px-3 py-2 text-sm font-mono shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-400"
+          className="wz-field__input wz-field__input--mono"
         />
         <datalist id={datalistId}>
           {fields.map((f) => (
@@ -492,9 +467,9 @@ function FieldPicker({
         </datalist>
       </div>
       {previewValue && (
-        <p className="mt-2 text-xs text-gray-500">
-          <span className="font-medium text-gray-700">First row:</span>{" "}
-          <span className="font-mono">{previewValue}</span>
+        <p className="wz-field__preview">
+          <span className="wz-field__previewLabel">First row:</span>{" "}
+          <span>{previewValue}</span>
         </p>
       )}
     </div>

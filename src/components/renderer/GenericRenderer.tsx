@@ -2,6 +2,10 @@
 
 import type { Trace } from "@/lib/trace/types";
 
+// GenericRenderer (issue #53). Fallback for "we don't know what shape
+// this is" - input on top, output on the bottom, both serif because
+// reading is the focal act. Quiet Notebook tokens.
+
 type Props = { trace: Trace };
 
 export function GenericRenderer({ trace }: Props) {
@@ -9,29 +13,17 @@ export function GenericRenderer({ trace }: Props) {
   const outputText = trace.output.map((m) => m.content).join("\n\n");
 
   return (
-    <div className="space-y-4">
+    <div className="generic-trace">
       {inputText && (
-        <div>
-          <p className="text-[10px] uppercase tracking-wide text-gray-400 font-medium mb-2">
-            Input
-          </p>
-          <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
-            <p className="text-sm text-gray-800 whitespace-pre-wrap max-h-48 overflow-auto">
-              {inputText}
-            </p>
-          </div>
+        <div className="generic-trace__section">
+          <div className="generic-trace__label">input</div>
+          <div className="generic-trace__body">{inputText}</div>
         </div>
       )}
       {outputText && (
-        <div>
-          <p className="text-[10px] uppercase tracking-wide text-gray-400 font-medium mb-2">
-            Output
-          </p>
-          <div className="rounded-lg border border-gray-200 bg-white px-4 py-3">
-            <p className="text-sm text-gray-900 whitespace-pre-wrap max-h-72 overflow-auto">
-              {outputText}
-            </p>
-          </div>
+        <div className="generic-trace__section">
+          <div className="generic-trace__label">output</div>
+          <div className="generic-trace__body">{outputText}</div>
         </div>
       )}
     </div>

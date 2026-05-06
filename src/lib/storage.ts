@@ -336,15 +336,21 @@ export function saveTemplate(choice: TemplateChoice): void {
 }
 
 // Hotkey config. Maps an action name to the keyboard key that triggers it.
-// Stored in localStorage so user remappings persist across sessions. The
-// default values match the v1 documented hotkeys (P pass, F fail, etc.).
+// Stored in localStorage so user remappings persist across sessions.
+//
+// v3.1 (Quiet Notebook, issue #53) expansion:
+//   - labelNext default is "u" (was "n") to match the design handoff §4.
+//   - focusTag is new: T puts focus in the consolidated tag input.
+// Older saved configs without focusTag fall back to the default via the
+// loadHotkeys() merge below.
 export type Hotkeys = {
   pass: string;
   fail: string;
   next: string; // Enter or ArrowRight
   prev: string; // ArrowLeft
-  labelNext: string; // N
+  labelNext: string; // U (jump to next unlabeled)
   skip: string; // S
+  focusTag: string; // T (focus consolidated tag input)
 };
 
 export const DEFAULT_HOTKEYS: Hotkeys = {
@@ -352,8 +358,9 @@ export const DEFAULT_HOTKEYS: Hotkeys = {
   fail: "f",
   next: "Enter",
   prev: "ArrowLeft",
-  labelNext: "n",
+  labelNext: "u",
   skip: "s",
+  focusTag: "t",
 };
 
 const HOTKEYS_KEY = "ta:hotkeys:v1";
@@ -449,6 +456,32 @@ export function saveMode(mode: Mode): void {
     localStorage.setItem(MODE_KEY, mode);
   } catch {
     // No-op; mode is a UX preference, not data.
+  }
+}
+
+// Coaching enabled flag (issue #53). Independent of the experienced-mode
+// toggle: a beginner can hide tips, an experienced reviewer can keep them
+// on. Default true so first-run users see the welcome arc. Stored in
+// localStorage on the same SSR-safe try/catch pattern as Mode and Hotkeys.
+const COACHING_KEY = "ta:coaching-enabled:v1";
+
+export function loadCoachingEnabled(): boolean {
+  if (typeof window === "undefined") return true;
+  try {
+    const raw = localStorage.getItem(COACHING_KEY);
+    if (raw === null) return true;
+    return raw !== "false";
+  } catch {
+    return true;
+  }
+}
+
+export function saveCoachingEnabled(enabled: boolean): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(COACHING_KEY, enabled ? "true" : "false");
+  } catch {
+    // No-op; coaching toggle is a UX preference, not data.
   }
 }
 

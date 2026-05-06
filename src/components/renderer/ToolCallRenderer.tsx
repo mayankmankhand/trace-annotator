@@ -3,40 +3,66 @@
 import type { Message } from "@/lib/trace/types";
 import { parseToolCalls, type ToolCallInfo } from "@/lib/trace/tool-calls";
 
+// ToolCallRenderer (issue #53). Quiet Notebook restyle: each call lives
+// in a `.tool-block` mono card with label/code rows, paired with a role
+// pill so it's clear who owns each line. Used for traces with one tool
+// call; multi-tool traces flow through AgentRenderer.
+
 type Props = { messages: Message[] };
 
-function ToolCallCard({ name, args }: ToolCallInfo) {
+function ToolCallBlock({ name, args }: ToolCallInfo) {
   return (
-    <div className="rounded-lg border border-violet-200 bg-violet-50 overflow-hidden">
-      <div className="px-4 py-2 bg-violet-100 border-b border-violet-200 flex items-center gap-2">
-        <span className="text-[10px] uppercase tracking-wide text-violet-600 font-medium">
-          tool call
-        </span>
-        <span className="font-mono text-sm font-semibold text-violet-900">
-          {name}()
+    <div className="trace-msg">
+      <div className="chat-trace__pill">
+        <span className="role-pill" data-role="tool">
+          tool · {name}
         </span>
       </div>
-      <div className="px-4 py-3">
-        <pre className="text-xs font-mono text-gray-800 whitespace-pre-wrap overflow-auto max-h-48">
-          {JSON.stringify(args, null, 2)}
-        </pre>
+      <div className="tool-block">
+        <div className="tool-block__row">
+          <span className="tool-block__label">args</span>
+          <code>{JSON.stringify(args)}</code>
+        </div>
       </div>
     </div>
   );
 }
 
-function ToolResultCard({ content }: { content: string }) {
+function ToolResultBlock({ content }: { content: string }) {
+  const ok = !/^error[:\s]/i.test(content.trim());
   return (
-    <div className="rounded-lg border border-emerald-200 bg-emerald-50 overflow-hidden">
-      <div className="px-4 py-2 bg-emerald-100 border-b border-emerald-200">
-        <span className="text-[10px] uppercase tracking-wide text-emerald-700 font-medium">
+    <div className="trace-msg">
+      <div className="chat-trace__pill">
+        <span className="role-pill" data-role="tool">
           tool result
         </span>
+        <span className="agent-trace__status" data-ok={ok ? "true" : "false"}>
+          {ok ? "ok" : "error"}
+        </span>
       </div>
-      <div className="px-4 py-3">
-        <pre className="text-xs font-mono text-gray-800 whitespace-pre-wrap overflow-auto max-h-48">
-          {content}
-        </pre>
+      <div className="tool-block">
+        <div className="tool-block__row">
+          <span className="tool-block__label">{"→"}</span>
+          <code data-ok={ok ? "true" : "false"}>{content}</code>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ChatTurn({ msg }: { msg: Message }) {
+  const isSerif = msg.role === "user" || msg.role === "assistant";
+  return (
+    <div className="trace-msg chat-trace__turn">
+      <div className="chat-trace__pill">
+        <span className="role-pill" data-role={msg.role}>
+          {msg.role}
+        </span>
+      </div>
+      <div
+        className={`trace-msg__body ${isSerif ? "trace-msg__body--serif" : "trace-msg__body--mono"}`}
+      >
+        {msg.content}
       </div>
     </div>
   );
@@ -44,47 +70,24 @@ function ToolResultCard({ content }: { content: string }) {
 
 export function ToolCallRenderer({ messages }: Props) {
   return (
-    <div className="space-y-3">
+    <div className="chat-trace">
       {messages.map((m, i) => {
         if (m.role === "tool") {
-          return <ToolResultCard key={i} content={m.content} />;
+          return <ToolResultBlock key={i} content={m.content} />;
         }
-
-        const toolCalls = parseToolCalls(m.content);
-        if (toolCalls.length > 0) {
-          // A single message can encode multiple parallel tool calls
-          // (OpenAI tool_calls[], Anthropic content blocks). Render one
-          // card per call so nothing is silently dropped.
+        const calls = parseToolCalls(m.content);
+        if (calls.length > 0) {
+          // Multiple parallel tool calls (OpenAI tool_calls[], Anthropic
+          // content blocks) render one card each so nothing is dropped.
           return (
-            <div key={i} className="space-y-3">
-              {toolCalls.map((tc, j) => (
-                <ToolCallCard key={`${i}-${j}`} {...tc} />
+            <div key={i} className="chat-trace__group">
+              {calls.map((tc, j) => (
+                <ToolCallBlock key={`${i}-${j}`} {...tc} />
               ))}
             </div>
           );
         }
-
-        const isUser = m.role === "user";
-        return (
-          <div key={i} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
-            <div
-              className={`max-w-[85%] max-h-[80vh] overflow-auto rounded-lg px-4 py-3 text-sm whitespace-pre-wrap break-words ${
-                isUser
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-100 text-gray-900 border border-gray-200"
-              }`}
-            >
-              <div
-                className={`text-[10px] uppercase tracking-wide mb-1 font-medium ${
-                  isUser ? "text-blue-200" : "text-gray-500"
-                }`}
-              >
-                {m.role}
-              </div>
-              {m.content}
-            </div>
-          </div>
-        );
+        return <ChatTurn key={i} msg={m} />;
       })}
     </div>
   );

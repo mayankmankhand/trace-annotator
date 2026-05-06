@@ -5,10 +5,9 @@ import type { Annotations } from "./TraceView";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { ConfirmDialog } from "@/components/ui/Dialog";
 
-// Rename, merge, and remove tags across the entire labeled set. Operates on
-// a snapshot of all annotations; the parent applies the transform globally.
-// Per the v2 plan: flat tags only (no hierarchy), so the UI is intentionally
-// simple - a list of distinct tags with rename/delete affordances.
+// TagManagementPanel (issue #53). Now opens as a full-bleed overlay so it
+// never sits on top of a trace - matches the friction-test rule that
+// taxonomy editing should not be a popup over labeling work.
 
 type Props = {
   annotations: Annotations;
@@ -37,24 +36,13 @@ export function TagManagementPanel({
   const tags = Array.from(counts.keys()).sort();
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
-  // Tag pending deletion. The styled ConfirmDialog replaces the previous
-  // browser confirm() so the impact ("on N traces") is visible inline and
-  // the dialog inherits the same focus-trap as the rest of the modal.
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
-  // Tag pending a merge-rename. Triggered when the user renames into an
-  // existing tag - instead of silently merging (the old behavior), we ask
-  // for explicit confirmation showing how many traces are affected.
   const [pendingMerge, setPendingMerge] = useState<{
     from: string;
     to: string;
   } | null>(null);
-  // Trap focus inside the dialog while it's open. Restores focus to the
-  // trigger element on close. Without this, Tab would carry the user into
-  // the obscured background.
   const dialogRef = useFocusTrap<HTMLDivElement>(open);
 
-  // Close on Escape - matches the visual modal pattern used by SettingsModal
-  // and the ConfirmDialog primitive.
   useEffect(() => {
     if (!open) return;
     function onKey(e: KeyboardEvent) {
@@ -74,11 +62,6 @@ export function TagManagementPanel({
     if (!editing) return;
     const next = draft.trim();
     if (next && next !== editing) {
-      // Renaming into an existing tag is technically a merge. Surface that
-      // explicitly so a typo-rename ("wrong-dates" colliding with an
-      // existing "wrong-dates") doesn't silently collapse two distinct
-      // tags. The user-side label for the operation is still "rename" -
-      // the dialog explains the merge consequence.
       if (counts.has(next)) {
         setPendingMerge({ from: editing, to: next });
         return;
@@ -98,47 +81,42 @@ export function TagManagementPanel({
       role="dialog"
       aria-modal="true"
       aria-label="Manage tags"
-      className="fixed inset-0 z-30 flex items-center justify-center bg-black/30 px-4"
+      className="lv-overlay"
       onClick={onClose}
     >
       <div
         ref={dialogRef}
-        className="w-full max-w-lg rounded-lg bg-white shadow-xl border max-h-[80vh] flex flex-col"
+        className="lv-overlay__sheet"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="px-5 py-4 border-b flex items-center justify-between">
-          <h2 className="text-base font-semibold text-gray-900">Manage tags</h2>
+        <div className="lv-overlay__head">
+          <h2 className="lv-overlay__title">Manage tags</h2>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close tag management"
-            className="text-gray-400 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded"
+            className="lv-overlay__close"
           >
             &times;
           </button>
         </div>
-
-        <div className="px-5 py-3 text-xs text-gray-600">
-          Rename a tag to fix a typo, or rename two tags to the same name to
-          merge them. Deleting a tag removes it from every trace that has it
-          (the labels themselves stay).
-        </div>
-
-        <div className="flex-1 overflow-auto px-5 pb-5">
+        <div className="lv-overlay__body scroll-y">
+          <p className="lv-overlay__hint">
+            Rename a tag to fix a typo, or rename two tags to the same name to
+            merge them. Deleting a tag removes it from every trace that has it
+            (the labels themselves stay).
+          </p>
           {tags.length === 0 ? (
-            <p className="text-sm text-gray-500 italic">
-              No tags yet. Add some from the trace view first.
+            <p className="lv-tagmgr__empty">
+              No tags yet. Add some from the labeling view first.
             </p>
           ) : (
-            <ul className="divide-y">
+            <ul className="lv-tagmgr">
               {tags.map((tag) => {
                 const count = counts.get(tag) ?? 0;
                 const isEditing = editing === tag;
                 return (
-                  <li
-                    key={tag}
-                    className="py-2 flex items-center gap-3"
-                  >
+                  <li key={tag} className="lv-tagmgr__row">
                     {isEditing ? (
                       <>
                         <input
@@ -150,46 +128,44 @@ export function TagManagementPanel({
                             if (e.key === "Enter") commitEdit();
                             if (e.key === "Escape") cancelEdit();
                           }}
-                          className="flex-1 rounded border border-gray-300 px-2 py-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                          className="lv-tagmgr__input"
                         />
                         <button
                           type="button"
                           onClick={commitEdit}
-                          className="px-2 py-1 text-xs font-medium text-white bg-blue-600 rounded hover:bg-blue-700"
+                          className="lv-nav lv-nav--primary"
                         >
-                          Save
+                          save
                         </button>
                         <button
                           type="button"
                           onClick={cancelEdit}
-                          className="px-2 py-1 text-xs text-gray-600 hover:text-gray-900"
+                          className="lv-overlay__resetLink"
                         >
-                          Cancel
+                          cancel
                         </button>
                       </>
                     ) : (
                       <>
-                        <span className="flex-1 inline-flex items-center gap-2">
-                          <span className="inline-flex items-center rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-800">
-                            {tag}
-                          </span>
-                          <span className="text-xs text-gray-500">
+                        <span className="lv-tagmgr__tag">
+                          <span className="ta-chip ta-chip--applied">{tag}</span>
+                          <span className="lv-tagmgr__count">
                             on {count} {count === 1 ? "trace" : "traces"}
                           </span>
                         </span>
                         <button
                           type="button"
                           onClick={() => startEdit(tag)}
-                          className="text-xs text-blue-600 hover:text-blue-800 hover:underline"
+                          className="lv-overlay__resetLink"
                         >
-                          Rename
+                          rename
                         </button>
                         <button
                           type="button"
                           onClick={() => setPendingDelete(tag)}
-                          className="text-xs text-red-600 hover:text-red-800 hover:underline"
+                          className="lv-overlay__resetLink lv-overlay__resetLink--destructive"
                         >
-                          Delete
+                          delete
                         </button>
                       </>
                     )}
@@ -211,14 +187,14 @@ export function TagManagementPanel({
             const toCount = counts.get(pendingMerge.to) ?? 0;
             return (
               <p>
-                <span className="inline-flex items-center rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-800 mx-0.5">
+                <span className="ta-chip ta-chip--applied">
                   {pendingMerge.to}
-                </span>
+                </span>{" "}
                 already exists on {toCount}{" "}
                 {toCount === 1 ? "trace" : "traces"}. This rename will merge{" "}
-                <span className="inline-flex items-center rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-800 mx-0.5">
+                <span className="ta-chip ta-chip--applied">
                   {pendingMerge.from}
-                </span>
+                </span>{" "}
                 ({fromCount} {fromCount === 1 ? "trace" : "traces"}) into it.
                 The original tag will be removed.
               </p>
@@ -247,9 +223,7 @@ export function TagManagementPanel({
             return (
               <p>
                 This will remove{" "}
-                <span className="inline-flex items-center rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-800 mx-0.5">
-                  {pendingDelete}
-                </span>{" "}
+                <span className="ta-chip ta-chip--applied">{pendingDelete}</span>{" "}
                 from {c} {c === 1 ? "trace" : "traces"}. The labels themselves
                 stay.
               </p>

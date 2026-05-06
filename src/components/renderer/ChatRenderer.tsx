@@ -1,74 +1,76 @@
 "use client";
 
+import { useState } from "react";
 import type { Message } from "@/lib/trace/types";
 
-type Props = { messages: Message[]; collapseSystem?: boolean };
+// ChatRenderer (issue #53). Quiet Notebook restyle:
+//   - role pills (data-role attribute) are the only label decoration
+//   - serif body for prose (user/assistant/tool prose), mono for system
+//   - 22px gap between turns, 14px in dense mode
+//   - system messages collapse behind a disclosure summary by default
+//
+// Tool messages routed here render as a compact mono card so a single
+// inline tool result inside an otherwise chatty trace stays readable.
 
-type RoleStyle = { wrap: string; bubble: string; label: string };
-
-const ROLE_STYLES: Record<string, RoleStyle> = {
-  user: {
-    wrap: "justify-end",
-    bubble: "bg-blue-600 text-white",
-    label: "text-blue-200",
-  },
-  assistant: {
-    wrap: "justify-start",
-    bubble: "bg-gray-100 text-gray-900 border border-gray-200",
-    label: "text-gray-500",
-  },
-  system: {
-    wrap: "justify-center",
-    bubble: "bg-amber-50 text-gray-700 border border-amber-200",
-    label: "text-amber-600",
-  },
-  tool: {
-    wrap: "justify-start",
-    bubble: "bg-emerald-50 text-gray-800 border border-emerald-200 font-mono text-xs",
-    label: "text-emerald-700",
-  },
+type Props = {
+  messages: Message[];
+  collapseSystem?: boolean;
+  dense?: boolean;
 };
 
-const FALLBACK_STYLE: RoleStyle = ROLE_STYLES.assistant;
-
-export function ChatRenderer({ messages, collapseSystem = false }: Props) {
+export function ChatRenderer({ messages, collapseSystem = false, dense = false }: Props) {
   return (
-    <div className="space-y-3">
+    <div className="chat-trace">
       {messages.map((m, i) => {
-        const isSystem = m.role === "system";
-
-        if (isSystem && collapseSystem) {
-          return (
-            <details
-              key={i}
-              className="rounded-lg border border-amber-200 bg-amber-50"
-            >
-              <summary className="cursor-pointer select-none px-4 py-2 text-sm font-medium text-amber-700 hover:bg-amber-100">
-                System prompt (click to expand)
-              </summary>
-              <div className="px-4 py-3 text-sm text-gray-700 whitespace-pre-wrap italic max-h-72 overflow-auto">
-                {m.content}
-              </div>
-            </details>
-          );
+        if (m.role === "system" && collapseSystem) {
+          return <SystemCollapsible key={i} content={m.content} />;
         }
-
-        const s = ROLE_STYLES[m.role] ?? FALLBACK_STYLE;
-        return (
-          <div key={i} className={`flex ${s.wrap}`}>
-            <div
-              className={`rounded-lg px-4 py-3 text-sm whitespace-pre-wrap break-words ${
-                isSystem ? "w-full text-center italic" : "max-w-[85%]"
-              } ${s.bubble}`}
-            >
-              <div className={`text-[10px] uppercase tracking-wide mb-1 font-medium ${s.label}`}>
-                {m.role}
-              </div>
-              <div className="max-h-72 overflow-auto">{m.content}</div>
-            </div>
-          </div>
-        );
+        return <ChatTurn key={i} msg={m} dense={dense} />;
       })}
+    </div>
+  );
+}
+
+function ChatTurn({ msg, dense }: { msg: Message; dense: boolean }) {
+  const isMono = msg.role === "system" || msg.role === "tool";
+  return (
+    <div className={`trace-msg chat-trace__turn${dense ? " chat-trace__turn--dense" : ""}`}>
+      <div className="chat-trace__pill">
+        <span className="role-pill" data-role={msg.role}>
+          {msg.role}
+        </span>
+      </div>
+      <div
+        className={`trace-msg__body ${isMono ? "trace-msg__body--mono" : "trace-msg__body--serif"}`}
+      >
+        {msg.content}
+      </div>
+    </div>
+  );
+}
+
+// System messages are usually long, repeat across the file, and aren't
+// what the reviewer is judging. Hide behind a summary by default.
+function SystemCollapsible({ content }: { content: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="chat-trace__system">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="chat-trace__systemSummary"
+      >
+        <span className="role-pill" data-role="system">
+          system
+        </span>
+        <span>{open ? "hide system prompt" : "show system prompt"}</span>
+      </button>
+      {open && (
+        <div className="trace-msg__body trace-msg__body--mono chat-trace__systemBody">
+          {content}
+        </div>
+      )}
     </div>
   );
 }

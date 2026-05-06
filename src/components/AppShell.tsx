@@ -89,7 +89,6 @@ export function AppShell() {
       // persistent warning. Without this signal a v1-style "labels never
       // persisted" bug would be invisible to the user again.
       storageUnavailable = true;
-      // eslint-disable-next-line no-console
       console.warn("Trace Annotator: browser storage unavailable.", err);
     }
 
@@ -106,19 +105,18 @@ export function AppShell() {
 
   if (phase.kind === "wizard") {
     return (
-      <main className="min-h-screen flex flex-col items-center px-4 py-12">
+      <main className="wz-page">
         {/*
           Visually hidden h1 so the page has a level-one heading (axe
-          page-has-heading-one). The Logo wordmark is the visual title;
-          screen readers and SEO get the explicit heading.
+          page-has-heading-one). The Logo wordmark is the visual title.
         */}
         <h1 className="sr-only">Trace Annotator</h1>
-        <div className="w-full max-w-2xl mb-8 flex flex-col items-center text-center gap-3">
+        <div className="wz-page__intro">
           <Logo />
-          <p className="text-gray-600 max-w-xl">
-            A keyboard-first labeling tool for new PMs running their first eval.
-            Load a file of LLM traces below; the wizard will help you map the
-            fields and preview the first trace before labeling.
+          <p className="wz-page__lede">
+            A keyboard-first labeling tool for new PMs running their first
+            eval. Load a file of LLM traces below; the wizard maps the
+            fields and previews the first trace before labeling.
           </p>
         </div>
         <Wizard onDone={handleWizardDone} />
@@ -128,8 +126,8 @@ export function AppShell() {
 
   if (phase.kind === "checking") {
     return (
-      <main className="min-h-screen flex items-center justify-center">
-        <p className="text-sm text-gray-500" role="status" aria-live="polite">
+      <main className="wz-page wz-page--center">
+        <p className="wz-page__lede" role="status" aria-live="polite">
           Loading session...
         </p>
       </main>
@@ -138,9 +136,6 @@ export function AppShell() {
 
   if (phase.kind === "resume-offer") {
     const { traces, filename, fingerprint, lastIndex, annotations, labeledCount } = phase;
-    // Compose richer resume copy so the user knows exactly what state will
-    // be restored. Tag count surfaced too because that's the most visible
-    // sign of "have I done useful work yet?".
     const passCount = Object.values(annotations).filter((a) => a.verdict === "pass").length;
     const failCount = Object.values(annotations).filter((a) => a.verdict === "fail").length;
     const distinctTags = new Set<string>();
@@ -148,25 +143,23 @@ export function AppShell() {
       for (const t of a.tags) distinctTags.add(t);
     }
     return (
-      <main className="min-h-screen flex flex-col items-center justify-center px-4">
-        <div className="w-full max-w-md rounded-lg border bg-white p-6 shadow-sm space-y-4">
-          <h2 className="text-lg font-semibold text-gray-900">Resume session?</h2>
-          <p className="text-sm text-gray-600">
+      <main className="wz-page wz-page--center">
+        <div className="wz-card wz-resume">
+          <h2 className="wz-step__title">Resume session?</h2>
+          <p className="wz-step__hint">
             Found a saved session for{" "}
-            <span className="font-mono text-gray-800">{filename}</span>.
+            <span className="wz-resume__file">{filename}</span>.
           </p>
-          <ul className="text-sm text-gray-700 space-y-1">
+          <ul className="wz-resume__list">
             <li>
               <strong>{labeledCount}</strong> of {traces.length} traces labeled
               {labeledCount > 0 && (
-                <span className="text-gray-500">
+                <span className="wz-resume__sub">
                   {" "}({passCount} pass, {failCount} fail)
                 </span>
               )}
             </li>
-            <li>
-              Last viewed: trace #{lastIndex + 1}
-            </li>
+            <li>Last viewed: trace #{lastIndex + 1}</li>
             {distinctTags.size > 0 && (
               <li>
                 <strong>{distinctTags.size}</strong>{" "}
@@ -175,11 +168,11 @@ export function AppShell() {
               </li>
             )}
           </ul>
-          <p className="text-xs text-gray-500">
-            Resuming restores all your labels and tags. Start fresh archives the
-            current state and starts at trace 1.
+          <p className="wz-resume__note">
+            Resuming restores all your labels and tags. Start fresh archives
+            the current state and starts at trace 1.
           </p>
-          <div className="flex gap-3 pt-2">
+          <div className="wz-resume__actions">
             <button
               type="button"
               onClick={() =>
@@ -192,7 +185,7 @@ export function AppShell() {
                   initialIndex: lastIndex,
                 })
               }
-              className="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              className="lv-nav lv-nav--primary wz-resume__btn"
             >
               Resume from trace {lastIndex + 1}
             </button>
@@ -208,7 +201,7 @@ export function AppShell() {
                   initialIndex: 0,
                 })
               }
-              className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 rounded border border-gray-300 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              className="lv-nav wz-resume__btn"
             >
               Start fresh
             </button>
