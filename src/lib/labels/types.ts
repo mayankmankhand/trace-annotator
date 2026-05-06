@@ -7,6 +7,12 @@
  * tags                - failure mode labels (open coding, can be empty)
  * note                - free-text note from the reviewer (can be empty)
  * labeled_at          - ISO 8601 timestamp, set when any annotation was first recorded
+ * skipped             - (v3.1, optional) "needs review later" marker.
+ *                       Independent of verdict so a user can mark a trace
+ *                       skipped before deciding pass/fail. Absent on
+ *                       existing v1/v2/v3 labels. JSONL preserves it
+ *                       verbatim; CSV writes it as the string "true" or
+ *                       empty so spreadsheet filters work.
  * tool_call_reviews   - (v3, optional) per-tool-call correctness verdict.
  *                       Keyed by the tool call's stable index (its position
  *                       in the trace's combined input+output message
@@ -19,5 +25,6 @@ export type LabelRow = {
   tags: string[];
   note: string;
   labeled_at: string;
+  skipped?: boolean;
   tool_call_reviews?: Record<number, "right" | "wrong" | "skip">;
 };

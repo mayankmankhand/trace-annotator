@@ -1,7 +1,24 @@
 @import "tailwindcss";
 
+/* Quiet Notebook design system (issue #53). Loaded after Tailwind so
+   semantic class names defined here win when both are present on the
+   same element. Tailwind utilities still work for the wizard and any
+   surface that has not been migrated yet. */
+@import "./styles/quiet-notebook.css";
+@import "./styles/labeling-view.css";
+@import "./styles/batch-similarity.css";
+
+/* Bind next/font CSS variables to the design-system font stacks so the
+   tokens defined in quiet-notebook.css resolve to the self-hosted fonts
+   loaded by next/font in layout.tsx. */
+:root {
+  --sans: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
+  --mono: var(--font-plex-mono), ui-monospace, "SF Mono", Menlo, monospace;
+  --serif: var(--font-newsreader), "Iowan Old Style", Georgia, serif;
+}
+
 body {
-  font-family: var(--font-inter), system-ui, -apple-system, sans-serif;
+  font-family: var(--sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import type { Hotkeys } from "@/lib/storage";
+import { loadCoachingEnabled, type Hotkeys } from "@/lib/storage";
 
 // Cards 1-5 mirror docs/coaching-arc.md (Step 4 spec). Bodies that reference
 // hotkeys are interpolated at render time so the coaching stays in lockstep
@@ -72,7 +72,7 @@ const MILESTONES: MilestoneCard[] = [
   {
     atIndex: 24, // trace 25 in user-facing 1-indexed copy
     title: "Trace 25 - your taxonomy is forming",
-    body: "Take a quick look at your tag list (in the right panel and the bottom strip). Which 3-5 tags repeat the most? Those are your first-pass taxonomy. Consider going back to revise older traces with these.",
+    body: "Take a quick look at your tag list. Which 3-5 tags repeat the most? Those are your first-pass taxonomy. Consider going back to revise older traces with these.",
   },
   {
     atIndex: 49,
@@ -102,8 +102,13 @@ function milestoneKey(fingerprint: string, atIndex: number): string {
   return `${MILESTONE_KEY_PREFIX}${fingerprint}:${atIndex}`;
 }
 
+// Coaching is active when the global setting is on AND the user has not
+// dismissed it for this session or permanently. The setting is independent
+// of the experienced-mode toggle so a power user can keep tips on, and a
+// beginner who doesn't want them can hide them. Default-on for first-run.
 export function isCoachingActive(): boolean {
   if (typeof window === "undefined") return false;
+  if (!loadCoachingEnabled()) return false;
   if (localStorage.getItem(LS_KEY) === "true") return false;
   if (sessionStorage.getItem(SS_KEY) === "true") return false;
   return true;
@@ -170,6 +175,9 @@ type Props = {
   onPermanentDismiss: () => void;
 };
 
+// Coaching tip card. Lives inside the decision rail so it never blocks the
+// trace pane. Uses the warm-yellow `coach-card` tokens from the Quiet
+// Notebook design system (see src/app/styles/quiet-notebook.css).
 export function CoachingTip({
   traceIndex,
   total,
@@ -180,83 +188,94 @@ export function CoachingTip({
   if (traceIndex >= TIPS_COUNT) return null;
   const title = TIP_TITLES[traceIndex];
   const body = buildTipBody(traceIndex, hotkeys, total);
-  const stepLabel = `Tip ${traceIndex + 1} of ${TIPS_COUNT}`;
+  const stepLabel = `tip ${traceIndex + 1} of ${TIPS_COUNT}`;
 
   return (
-    <div
-      role="note"
-      aria-label={`Coaching tip: ${title}`}
-      className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm"
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex-1 min-w-0">
-          <p className="font-semibold text-blue-900">{title}</p>
-          <p className="text-blue-800 mt-0.5 leading-relaxed">{body}</p>
-        </div>
+    <div role="note" aria-label={`Coaching tip: ${title}`} className="coach-card">
+      <div className="coach-card__title">{stepLabel}</div>
+      <div className="coach-card__heading">{title}</div>
+      <div className="coach-card__body">{body}</div>
+      <div className="coach-card__actions">
         <button
           type="button"
           onClick={onSessionDismiss}
+          className="coach-card__dismiss"
           aria-label="Dismiss coaching tips for this session"
-          className="flex-shrink-0 inline-flex items-center justify-center w-7 h-7 -mr-1 -mt-1 rounded text-blue-400 hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 text-lg leading-none"
         >
-          &times;
+          dismiss for now
         </button>
-      </div>
-      <div className="mt-2 flex items-center justify-between">
-        <span className="text-xs text-blue-500">{stepLabel} - navigate forward to see the next tip</span>
         <button
           type="button"
           onClick={onPermanentDismiss}
-          className="text-xs text-blue-500 hover:text-blue-800 underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded"
+          className="coach-card__dismiss"
+          aria-label="Don't show coaching tips again"
         >
-          Don&apos;t show again
+          don&apos;t show again
         </button>
       </div>
     </div>
   );
 }
 
-// Milestone card UI. Lightweight version of CoachingTip - no "step N of M"
-// counter (these are one-off), just title, body, and a single dismiss.
+// Milestone card UI. Lightweight version of CoachingTip with the same
+// warm-yellow palette but stat blocks instead of step counter.
 export function MilestoneTip({
   card,
+  stats,
   onDismiss,
 }: {
   card: MilestoneCard;
+  stats?: {
+    uniqueTags: number;
+    usedOnce: number;
+    nearDuplicates: number;
+  };
   onDismiss: () => void;
 }) {
   return (
     <div
       role="note"
       aria-label={`Coaching milestone: ${card.title}`}
-      className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm"
+      className="milestone-card"
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex-1 min-w-0">
-          <p className="font-semibold text-blue-900">{card.title}</p>
-          <p className="text-blue-800 mt-0.5 leading-relaxed">{card.body}</p>
+      <div className="coach-card__title">milestone</div>
+      <div className="coach-card__heading">{card.title}</div>
+      {stats && (
+        <div className="milestone-card__stats">
+          <div>
+            <div className="milestone-card__num">{stats.uniqueTags}</div>
+            <div className="milestone-card__lbl">unique tags</div>
+          </div>
+          <div>
+            <div className="milestone-card__num">{stats.usedOnce}</div>
+            <div className="milestone-card__lbl">used once</div>
+          </div>
+          <div>
+            <div className="milestone-card__num">{stats.nearDuplicates}</div>
+            <div className="milestone-card__lbl">near dupes</div>
+          </div>
         </div>
+      )}
+      <div className="coach-card__body">{card.body}</div>
+      <div className="coach-card__actions">
         <button
           type="button"
           onClick={onDismiss}
+          className="coach-card__dismiss"
           aria-label="Dismiss milestone tip"
-          className="flex-shrink-0 inline-flex items-center justify-center w-7 h-7 -mr-1 -mt-1 rounded text-blue-400 hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 text-lg leading-none"
         >
-          &times;
+          got it
         </button>
       </div>
     </div>
   );
 }
 
-// Small presence indicator rendered between Card 5 (last initial tip) and
-// the trace-25 milestone. Without it, coaching goes silent for ~20 traces,
-// which works against the "tool teaches as you label" wedge. Visible on
-// traces 6-15 (1-indexed), session-dismissible. Self-gates on file size and
-// trace position; the parent must also gate on coachingActive (passed in)
-// so a permanent dismiss hides the chip too. Copy is intentionally
-// position-not-completion ("Keep going") because the user may have
-// session-dismissed an early card and "5 tips done" would be inaccurate.
+// Compact "still here" indicator rendered between Card 5 (last initial tip)
+// and the trace-25 milestone. Without it, coaching goes silent for ~20
+// traces, which works against the "tool teaches as you label" wedge.
+// Visible on traces 6-15 (1-indexed), session-dismissible. Self-gates on
+// file size and trace position; the parent gates on coachingActive.
 export function TipsProgressChip({
   traceIndex,
   total,
@@ -273,20 +292,55 @@ export function TipsProgressChip({
   if (traceIndex >= 15) return null;
   if (total < TIPS_COUNT) return null;
   return (
-    <span
-      role="status"
-      className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 border border-blue-200 px-2 py-0.5 text-xs text-blue-700"
-    >
-      <span className="font-medium">Coaching</span>
-      <span className="text-blue-500">- keep going</span>
+    <span role="status" className="ta-chip lv-tips-chip">
+      <span className="lv-tips-chip__label">coaching</span>
+      <span className="lv-tips-chip__sub">keep going</span>
       <button
         type="button"
         onClick={onDismiss}
         aria-label="Dismiss coaching progress chip"
-        className="inline-flex items-center justify-center w-5 h-5 rounded text-blue-400 hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+        className="lv-tips-chip__x"
       >
         &times;
       </button>
     </span>
   );
+}
+
+// Compute milestone-card stats from the user's current annotations. Surfaces
+// the three numbers the design handoff spec calls out (unique, used-once,
+// near-duplicates). Called from TraceView when a milestone is shown.
+//
+// "near-duplicates" here is a cheap edit-distance pass over the lowercased
+// tag list - tags that share a 3-letter prefix and differ by <=2 characters
+// count as one near-duplicate pair. Good enough to flag the typical
+// "wrong-date" / "wrong-dates" / "wrong_date" trio without pulling in a
+// real similarity library.
+export function computeTaxonomyStats(
+  allTags: string[],
+  perTagCounts: Map<string, number>,
+): { uniqueTags: number; usedOnce: number; nearDuplicates: number } {
+  const uniqueTags = allTags.length;
+  let usedOnce = 0;
+  for (const t of allTags) {
+    if ((perTagCounts.get(t) ?? 0) === 1) usedOnce++;
+  }
+  let nearDuplicates = 0;
+  const lowered = allTags.map((t) => t.toLowerCase());
+  for (let i = 0; i < lowered.length; i++) {
+    for (let j = i + 1; j < lowered.length; j++) {
+      const a = lowered[i];
+      const b = lowered[j];
+      if (a.slice(0, 3) !== b.slice(0, 3)) continue;
+      if (Math.abs(a.length - b.length) > 2) continue;
+      let edits = 0;
+      const max = Math.max(a.length, b.length);
+      for (let k = 0; k < max; k++) {
+        if (a[k] !== b[k]) edits++;
+        if (edits > 2) break;
+      }
+      if (edits <= 2) nearDuplicates++;
+    }
+  }
+  return { uniqueTags, usedOnce, nearDuplicates };
 }

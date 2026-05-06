@@ -12,6 +12,7 @@ export function toCSV(rows: LabelRow[]): string {
     tags: r.tags.join("|"),
     note: r.note,
     labeled_at: r.labeled_at,
+    skipped: r.skipped ? "true" : "",
   }));
   return Papa.unparse(flat);
 }
