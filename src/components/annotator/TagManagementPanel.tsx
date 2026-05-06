@@ -5,9 +5,10 @@ import type { Annotations } from "./TraceView";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { ConfirmDialog } from "@/components/ui/Dialog";
 
-// TagManagementPanel (issue #53). Now opens as a full-bleed overlay so it
-// never sits on top of a trace - matches the friction-test rule that
-// taxonomy editing should not be a popup over labeling work.
+// TagManagementPanel (issue #53). Opens as a right-edge sheet (max 720px
+// wide, anchored to the right edge of the viewport) so it never sits on
+// top of the trace - matches the friction-test rule that taxonomy
+// editing should not be a popup over labeling work.
 
 type Props = {
   annotations: Annotations;

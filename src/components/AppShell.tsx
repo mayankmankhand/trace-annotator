@@ -43,7 +43,10 @@ function labelRowsToAnnotations(rows: LabelRow[]): Annotations {
       tags: row.tags,
       labeledAt: row.labeled_at,
       isEdited: false,
-      skipped: false,
+      // Persist the skip marker across reloads (was lost in v3 - skip was
+      // session-scoped only). Older rows without a `skipped` field default
+      // to false.
+      skipped: row.skipped === true,
       ...(row.tool_call_reviews
         ? { toolCallReviews: row.tool_call_reviews }
         : {}),
@@ -213,14 +216,25 @@ export function AppShell() {
 
   // phase.kind === "annotating"
   return (
-    <TraceView
-      traces={phase.traces}
-      filename={phase.filename}
-      fingerprint={phase.fingerprint}
-      initialAnnotations={phase.initialAnnotations}
-      initialIndex={phase.initialIndex}
-      storageUnavailable={phase.storageUnavailable}
-      onReset={() => setPhase({ kind: "wizard" })}
-    />
+    <main aria-labelledby="ta-app-heading">
+      {/*
+        Visually hidden h1 so the labeling page has a top-level heading
+        (axe page-has-heading-one). The trace title is its own h1 inside
+        the trace pane; both are appropriate because the trace title is
+        the primary user-visible identification of the current trace.
+      */}
+      <h1 id="ta-app-heading" className="sr-only">
+        Trace Annotator - labeling view
+      </h1>
+      <TraceView
+        traces={phase.traces}
+        filename={phase.filename}
+        fingerprint={phase.fingerprint}
+        initialAnnotations={phase.initialAnnotations}
+        initialIndex={phase.initialIndex}
+        storageUnavailable={phase.storageUnavailable}
+        onReset={() => setPhase({ kind: "wizard" })}
+      />
+    </main>
   );
 }

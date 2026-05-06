@@ -130,6 +130,41 @@ kbd {
 
 .ta-iconbtn--ghost { color: var(--ink-3); }
 
+/* Global focus indicator for every interactive surface in the system.
+   WCAG 2.4.7 Level AA. Browser default focus ring renders poorly against
+   the warm-paper background, so we replace it with a 3px accent halo +
+   sharper border. Letters that opt out (e.g. text inputs which manage
+   their own border-color on focus) reset .qn-focus inside their own
+   :focus rule. */
+.verdict-btn:focus-visible,
+.ta-iconbtn:focus-visible,
+.ta-chip:focus-visible,
+.lv-tag-cloud__chip:focus-visible,
+.lv-nav:focus-visible,
+.lv-toggle:focus-visible,
+.lv-export__item:focus-visible,
+.lv-overlay__close:focus-visible,
+.lv-overlay__resetLink:focus-visible,
+.lv-savestatus:focus-visible,
+.lv-tips-chip__x:focus-visible,
+.lv-rail__inlineLink:focus-visible,
+.coach-card__dismiss:focus-visible,
+.lv-hotkeys__capture:focus-visible,
+.lv-leftnav__item:focus-visible,
+.wz-template__card:focus-visible,
+.wz-link:focus-visible,
+.lv-find__select:focus-visible,
+.lv-find__num:focus-visible,
+.lv-tagmgr__input:focus-visible,
+.wz-field__input:focus-visible,
+.lv-tag-input input:focus-visible,
+.lv-note:focus-visible,
+.lv-overlay__adapterInput:focus-visible {
+  outline: none;
+  border-color: color-mix(in oklab, var(--accent) 55%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 22%, transparent);
+}
+
 /* ───── role pills ───── */
 
 .role-pill {
@@ -204,6 +239,12 @@ kbd {
   background: var(--ink-4);
   opacity: 0.6;
 }
+
+/* Per-segment progress fills. Each segment uses the matching design
+   token (pass/fail/skip) so no JSX inline color is needed. */
+.progress-bar__fill--pass { background: oklch(0.6 0.09 150); }
+.progress-bar__skip--fail { background: oklch(0.6 0.13 30); opacity: 1; }
+.progress-bar__skip--skip { background: var(--ink-4); }
 
 /* ───── panel scroll ───── */
 

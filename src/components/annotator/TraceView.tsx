@@ -106,13 +106,7 @@ function hasToolCallReviews(a: Annotation): boolean {
 
 function toRows(annotations: Annotations): LabelRow[] {
   return Object.entries(annotations)
-    .filter(
-      ([, a]) =>
-        a.verdict !== null ||
-        a.tags.length > 0 ||
-        a.note.trim() !== "" ||
-        hasToolCallReviews(a),
-    )
+    .filter(([, a]) => !isEmptyAnnotation(a))
     .map(([id, a]) => annotationToRow(id, a));
 }
 
@@ -124,15 +118,21 @@ function annotationToRow(trace_id: string, a: Annotation): LabelRow {
     note: a.note,
     labeled_at: a.labeledAt || new Date().toISOString(),
   };
+  if (a.skipped) row.skipped = true;
   if (hasToolCallReviews(a)) row.tool_call_reviews = a.toolCallReviews;
   return row;
 }
 
+// True when the annotation has nothing meaningful to persist - no verdict,
+// no tags, no note, not skipped, no tool-call reviews. Used by toRows
+// (filter empty rows out of the persisted set) and by the undo/redo path
+// (drop a row entirely when the snapshot is empty so toRows stays clean).
 function isEmptyAnnotation(a: Annotation): boolean {
   return (
     a.verdict === null &&
     a.tags.length === 0 &&
     a.note.trim() === "" &&
+    !a.skipped &&
     !hasToolCallReviews(a)
   );
 }
@@ -263,6 +263,15 @@ export function TraceView({
   const tagInputRef = useRef<HTMLInputElement>(null);
   const [tagQuery, setTagQuery] = useState("");
   const [showAllTags, setShowAllTags] = useState(false);
+  // Brief shake flag that fires when the user presses a 1-9 hotkey with
+  // no visible suggestion at that index. Without this signal the
+  // keystroke silently no-ops and beginners think the keyboard is
+  // broken. Auto-clears after the animation.
+  const [tagInputShake, setTagInputShake] = useState(false);
+  const flashUnboundHotkey = useCallback(() => {
+    setTagInputShake(true);
+    setTimeout(() => setTagInputShake(false), 320);
+  }, []);
 
   const total = traces.length;
   const trace = traces[index];
@@ -386,7 +395,12 @@ export function TraceView({
       picked.add(Math.floor(Math.random() * total));
     }
     setFilter({ kind: "sample", indices: picked });
-    const sortedFirst = Math.min(...Array.from(picked));
+    // Walk picked rather than spreading into Math.min - on huge files the
+    // spread can blow the JS arg stack.
+    let sortedFirst = total;
+    for (const v of picked) {
+      if (v < sortedFirst) sortedFirst = v;
+    }
     setIndex(sortedFirst);
   }
 
@@ -473,13 +487,16 @@ export function TraceView({
     setSelectedIds(ids);
   }, [total, traces, matchesFilter, annotationsRef]);
 
-  const matchingCount = (() => {
+  // Memoized: O(total) on every keystroke became visible on 1k-trace
+  // files. Only recompute when traces, annotations, or the filter
+  // actually change.
+  const matchingCount = useMemo(() => {
     let count = 0;
     for (let i = 0; i < total; i++) {
       if (matchesFilter(i, annotations)) count++;
     }
     return count;
-  })();
+  }, [total, annotations, matchesFilter]);
 
   function generateBatchId(): string {
     if (
@@ -592,17 +609,17 @@ export function TraceView({
 
   // Apply an undo entry's `before` snapshot, returning the next annotations
   // map. Used by both undo (pop the stack) and redo (replay an inverse).
+  // Truly-empty targets (no verdict, no tags, no note, not skipped, no
+  // tool-call reviews) get deleted so toRows stays consistent. Skipped or
+  // tool-call-only annotations are NOT empty and must be preserved
+  // through redo - the previous check ignored them.
   const applyUndoEntry = useCallback(
     (entry: UndoEntry, direction: "undo" | "redo") => {
       setAnnotations((prev) => {
         const next = { ...prev };
         for (const c of entry.changes) {
           const target = direction === "undo" ? c.before : c.after;
-          if (
-            target.verdict === null &&
-            target.tags.length === 0 &&
-            target.note === ""
-          ) {
+          if (isEmptyAnnotation(target)) {
             delete next[c.trace_id];
           } else {
             next[c.trace_id] = target;
@@ -894,7 +911,14 @@ export function TraceView({
       } else if (k >= "1" && k <= "9") {
         const i = Number(k) - 1;
         const visible = visibleTagSuggestions[i];
-        if (visible) applyTagToCurrent(visible);
+        if (visible) {
+          e.preventDefault();
+          applyTagToCurrent(visible);
+        } else {
+          // No suggestion bound to this digit. Surface a subtle shake on
+          // the tag input so the keystroke isn't silent.
+          flashUnboundHotkey();
+        }
       }
     }
 
@@ -919,6 +943,7 @@ export function TraceView({
     findOpen,
     selectedIds.size,
     clearSelection,
+    flashUnboundHotkey,
   ]);
 
   useEffect(() => {
@@ -1075,9 +1100,9 @@ export function TraceView({
           <div className="lv-trace__head">
             <div className="lv-trace__headRow">
               <span className="lv-trace__id">{trace.id}</span>
-              <h1 className="lv-trace__title">
-                {String((trace.metadata as Record<string, unknown> | undefined)?.title ?? "trace")}
-              </h1>
+              <h2 className="lv-trace__title">
+                {String((trace.metadata as Record<string, unknown> | undefined)?.title ?? trace.id)}
+              </h2>
               {annotation.isEdited && (
                 <span className="ta-chip lv-trace__editedChip">edited</span>
               )}
@@ -1205,12 +1230,14 @@ export function TraceView({
                 ))}
               </div>
             )}
-            <div className="lv-tag-input">
+            <div
+              className={`lv-tag-input${tagInputShake ? " lv-tag-input--shake" : ""}`}
+            >
               <input
                 ref={tagInputRef}
                 value={tagQuery}
                 onChange={(e) => setTagQuery(e.target.value)}
-                placeholder="Type or pick a tag..."
+                placeholder="Type to filter, Enter to add new..."
                 aria-label="Add or filter failure-mode tags"
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && tagQuery.trim()) {
@@ -1423,14 +1450,14 @@ export function TraceView({
         }
         body={
           pendingBulkVerdict ? (
-            <div className="space-y-2">
+            <div className="ta-dialog__bodyStack">
               <p>
                 <strong>{pendingBulkVerdict.overwrites}</strong> of these
                 traces already have a different verdict. Continuing will
                 overwrite their current verdicts and mark them as Edited.
               </p>
-              <p className="text-xs text-gray-500">
-                Cmd/Ctrl+Z reverts the entire batch in one step.
+              <p className="ta-dialog__hint">
+                Ctrl/Cmd+Z reverts the entire batch in one step.
               </p>
             </div>
           ) : null
@@ -1561,23 +1588,21 @@ function TopBar(props: {
             className="progress-bar lv-progress__bar"
           >
             <div
-              className="progress-bar__fill"
-              style={{ width: `${total === 0 ? 0 : (passCount / total) * 100}%`, background: "oklch(0.6 0.09 150)" }}
+              className="progress-bar__fill progress-bar__fill--pass"
+              style={{ width: `${total === 0 ? 0 : (passCount / total) * 100}%` }}
             />
             <div
-              className="progress-bar__skip"
+              className="progress-bar__skip progress-bar__skip--fail"
               style={{
                 left: `${total === 0 ? 0 : (passCount / total) * 100}%`,
                 width: `${total === 0 ? 0 : (failCount / total) * 100}%`,
-                background: "oklch(0.6 0.13 30)",
               }}
             />
             <div
-              className="progress-bar__skip"
+              className="progress-bar__skip progress-bar__skip--skip"
               style={{
                 left: `${total === 0 ? 0 : ((passCount + failCount) / total) * 100}%`,
                 width: `${total === 0 ? 0 : (skippedCount / total) * 100}%`,
-                background: "var(--ink-4)",
               }}
             />
           </div>
@@ -1696,7 +1721,6 @@ function BottomBar(props: {
     idx,
     total,
     labeledCount,
-    unlabeledCount,
     canPrev,
     canNext,
     undoCount,
@@ -1704,7 +1728,6 @@ function BottomBar(props: {
     saveStatus,
     onPrev,
     onNext,
-    onJumpUnlabeled,
     onUndo,
     onRedo,
   } = props;
@@ -1730,15 +1753,6 @@ function BottomBar(props: {
         <span className="lv-bottombar__counter">
           {idx + 1} of {total}
         </span>
-        {unlabeledCount > 0 && (
-          <button
-            type="button"
-            onClick={onJumpUnlabeled}
-            className="lv-nav lv-nav--quiet"
-          >
-            label next ({unlabeledCount}) <kbd>U</kbd>
-          </button>
-        )}
       </div>
       <div className="lv-bottombar__group">
         <button
@@ -1800,6 +1814,14 @@ function validateHotkey(
     key === "ArrowDown"
   ) {
     return `${key} is reserved for navigation`;
+  }
+  if (key === "Escape" || key === "Tab" || key === "?") {
+    return `${key} is reserved (overlay dismissal, focus, coaching toggle)`;
+  }
+  // Single visible character only - reject Function keys, Insert, Home,
+  // PageUp, etc. that fire inconsistently across OSes.
+  if (key.length !== 1 || !/[a-zA-Z]/.test(key)) {
+    return "Pick a single letter A-Z";
   }
   for (const [otherId, otherKey] of Object.entries(allHotkeys) as [
     keyof Hotkeys,
@@ -2014,7 +2036,7 @@ function AdapterSection() {
   }
 
   return (
-    <div className="lv-overlay__sectionTitle lv-overlay__adapter">
+    <div className="lv-overlay__adapter">
       <div className="lv-overlay__sectionTitle">Custom adapter (JSON)</div>
       <p className="lv-overlay__hint">
         Paste a JSON object describing how your trace files map to the

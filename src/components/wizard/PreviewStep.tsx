@@ -84,7 +84,7 @@ export function PreviewStep({
         </p>
       </div>
 
-      {viaAdapter ? (
+      {viaAdapter && (
         <div role="status" className="wz-banner wz-banner--info">
           <p className="wz-banner__title">
             Loaded {traces.length}{" "}
@@ -97,14 +97,26 @@ export function PreviewStep({
             the adapter in Settings to use the normal flow next time.
           </p>
         </div>
-      ) : (
-        autoRecognized && (
-          <ConfidenceBanner
-            count={traces.length}
-            envelopeKey={envelopeKey}
-            usedNestedMessages={usedNestedMessages}
-          />
-        )
+      )}
+      {/*
+        Show the envelope/nested-message confidence banner alongside the
+        adapter banner when both apply - the user benefits from knowing
+        the adapter unwrapped a wrapper or used a nested messages array,
+        not just that the adapter ran.
+      */}
+      {autoRecognized && (envelopeKey || usedNestedMessages) && (
+        <ConfidenceBanner
+          count={traces.length}
+          envelopeKey={envelopeKey}
+          usedNestedMessages={usedNestedMessages}
+        />
+      )}
+      {!viaAdapter && autoRecognized && !envelopeKey && !usedNestedMessages && (
+        <ConfidenceBanner
+          count={traces.length}
+          envelopeKey={envelopeKey}
+          usedNestedMessages={usedNestedMessages}
+        />
       )}
 
       <div className="wz-preview">

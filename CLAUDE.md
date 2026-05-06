@@ -143,7 +143,7 @@ Locked-in visual and interaction choices for the "Quiet Notebook" system (v3.1, 
 | Hotkeys | `P/F/S` Pass/Fail/Skip, `T` focus tag input, `U` jump-to-next-unlabeled, `1`-`9` apply visible suggestion, arrows Prev/Next, `Ctrl K` Find, `Ctrl Z` Undo, `Ctrl Shift Z` Redo, `Esc` exit batch / dismiss overlay. Mac shows the same Ctrl labels (the chord works as Cmd on Mac). Letter keys are user-rebindable in Settings. |
 | Chat bubbles | Role pill metadata above the message body. Trace prose renders in Newsreader; system / tool prose renders in mono. 22px gap between turns. Long system prompts collapse behind a disclosure summary. |
 | Coaching tips | Warm-yellow `.coach-card` rendered inside `.lv-rail__section`, never blocking the trace. Independent setting from experienced mode (`ta:coaching-enabled:v1`). Default on. Re-trigger via `?` or "? tips" in the top bar. |
-| Modals | Settings and Tag management open as full-bleed overlays anchored to the right edge, not popups over labeling work. ConfirmDialog still uses the centered modal shell for destructive flows. |
+| Modals | Settings and Tag management open as right-edge sheets (max 720px wide), not popups over labeling work. ConfirmDialog uses a centered shell for destructive flows that already happen inside an overlay (e.g. tag merge / delete). Bulk-verdict overwrite is the one mid-labeling exception and is gated behind a ConfirmDialog because the blast radius needs explicit acknowledgement. |
 
 **Deferred:**
 - Dark mode (variant C explicitly out of scope)

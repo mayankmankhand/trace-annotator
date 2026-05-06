@@ -85,6 +85,15 @@ export function RagRenderer({ trace }: { trace: Trace }) {
   const chunks = normalizeChunks(metadata);
   const query = deriveQuery(trace);
   const answer = deriveAnswer(trace);
+  // The "dim unused chunks" affordance only helps when at least one chunk
+  // is actually flagged used. If the source data has no `used` field the
+  // dimming would push every chunk to 65% opacity for no reason - the
+  // reviewer's eye has nothing to land on. So when no chunk is flagged,
+  // promote them all to "used" visually (full opacity).
+  const anyUsed = chunks.some((c) => c.used);
+  const renderChunks = anyUsed
+    ? chunks
+    : chunks.map((c) => ({ ...c, used: true }));
 
   return (
     <div className="rag-trace">
@@ -97,13 +106,13 @@ export function RagRenderer({ trace }: { trace: Trace }) {
         </div>
       )}
 
-      {chunks.length > 0 && (
+      {renderChunks.length > 0 && (
         <div className="rag-trace__chunks">
           <div className="rag-trace__retrievedLabel">
-            retrieved {chunks.length === 1 ? "1 chunk" : `${chunks.length} chunks`}
+            retrieved {renderChunks.length === 1 ? "1 chunk" : `${renderChunks.length} chunks`}
           </div>
           <div className="rag-trace__chunkList">
-            {chunks.map((c) => (
+            {renderChunks.map((c) => (
               <div
                 key={c.id}
                 className={`rag-chunk${c.used ? " rag-chunk--used" : ""}`}
