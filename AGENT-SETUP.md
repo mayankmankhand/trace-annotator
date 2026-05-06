@@ -77,6 +77,6 @@ Stop here. Do **not** try to label traces for the user. The whole point is for t
 
 - It does not configure GPU/CUDA (Trace Annotator is browser-only, no models run locally).
 - It does not set up API keys or `.env.local` (the app makes no outbound API calls; if `.env.local.example` exists, ignore it for now).
-- It does not deploy to a production host. v2.0 is local-only by design. Hosting is a v3 conversation.
+- It does not deploy to a production host. Trace Annotator is local-only by design and there are no plans for hosting.
 
 When in doubt, run the dev server and open the browser. The in-app coaching is the documentation.
