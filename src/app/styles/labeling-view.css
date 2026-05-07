@@ -710,6 +710,8 @@
   font-size: 13.5px;
   line-height: 1.5;
   color: var(--ink-2);
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .rag-chunk--used .rag-chunk__text { color: var(--ink); }
@@ -1879,6 +1881,8 @@
   font-size: 16.5px;
   line-height: 1.5;
   color: var(--ink);
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 .rag-trace__retrievedLabel {
   font-family: var(--mono);
