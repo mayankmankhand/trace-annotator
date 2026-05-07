@@ -1258,6 +1258,10 @@ export function TraceView({
                   if (e.key === "Enter" && tagQuery.trim()) {
                     e.preventDefault();
                     applyTagToCurrent(tagQuery);
+                    // Issue #59: blur on Enter so the next P/F/S keystroke
+                    // flows back into the global labeling-loop hotkeys
+                    // instead of being captured by this input.
+                    tagInputRef.current?.blur();
                   }
                   if (e.key === "Escape") {
                     e.preventDefault();
@@ -1652,6 +1656,16 @@ function TopBar(props: {
       </div>
 
       <div className="lv-topbar__right">
+        {/* Issue #59: visible only while a text-entry input inside the
+         * labeling view (or the Find popover) has focus (CSS-driven via
+         * `:has`). Surfaces the existing Esc affordance so the user
+         * knows the keyboard loop is paused, not broken. The element
+         * stays in the DOM with reserved space (visibility-toggled in
+         * CSS) so adjacent SaveIndicator/KebabMenu don't reflow on
+         * focus/blur. */}
+        <span className="lv-topbar__inputHint">
+          hotkeys paused while typing · Esc to clear
+        </span>
         {coachingEnabled && !tipsChipDismissed && (
           <TipsProgressChip
             traceIndex={idx}

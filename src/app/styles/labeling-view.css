@@ -2,7 +2,14 @@
 
 .labeling-view {
   width: 100%;
-  height: 100%;
+  /* Anchor to the viewport directly. `height: 100%` was inert because
+   * the chain above (`<html>` / `<body>` / wrapping `<main>`) doesn't
+   * set an explicit height, so `.lv-body { flex: 1 }` had no real upper
+   * bound and the grid row I capped (issue #58) still grew to content.
+   * `100dvh` accounts for mobile address-bar resize; `100vh` is the
+   * static fallback for browsers that don't yet ship `dvh`. */
+  height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   background: var(--paper);
@@ -48,6 +55,37 @@
 .lv-topbar__center { flex: 0 0 auto; }
 .lv-topbar__sep { color: var(--ink-4); }
 
+/* Issue #59: focus hint. Stays in the DOM with reserved space
+ * (visibility-toggled, not display-toggled) so the adjacent
+ * SaveIndicator/KebabMenu don't reflow on every focus/blur during
+ * keyboard labeling. Activated only when a text-entry input inside the
+ * labeling view (or the Find popover) has focus - explicitly excludes
+ * row-selection checkboxes (type=checkbox), focused buttons, and modal
+ * inputs (Settings/TagMgmt sit in `.lv-overlay` which is outside both
+ * `.lv-body` and `.lv-find`). `:has` is supported in all current
+ * browsers as of 2026. */
+.lv-topbar__inputHint {
+  visibility: hidden;
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+.labeling-view:has(
+    .lv-body input[type="text"]:focus,
+    .lv-body input[type="search"]:focus,
+    .lv-body input:not([type]):focus,
+    .lv-body textarea:focus,
+    .lv-body [contenteditable]:focus,
+    .lv-find input:focus
+  )
+  .lv-topbar__inputHint {
+  visibility: visible;
+}
+
 .lv-progress {
   display: flex;
   align-items: center;
@@ -66,6 +104,13 @@
   flex: 1;
   display: grid;
   grid-template-columns: 1fr 380px;
+  /* Cap the body row to the viewport so flex children inside each pane
+   * (queue rail, trace pane, decision rail) can use `flex-shrink: 0`
+   * for sticky bottom action bars and `min-height: 0` for internal
+   * scroll. Without this, the row defaults to `auto` (sized to
+   * content), each pane grows past the viewport, and the queue rail's
+   * sticky action bar (issue #58) ends up below the fold. */
+  grid-template-rows: minmax(0, 1fr);
   min-height: 0;
 }
 
@@ -90,6 +135,15 @@
 .lv-trace__body {
   flex: 1;
   padding: 0 36px 40px;
+  /* Pair to issue #58: now that the grid row is capped, long traces
+   * scroll inside the trace pane (head/foot stay anchored, bottom bar
+   * remains the page-level anchor) instead of being clipped. Each pane
+   * is its own scroll region by design. `scrollbar-gutter: stable`
+   * reserves the gutter so the scrollbar doesn't pop in/out as the
+   * content height changes between traces. */
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  min-height: 0;
 }
 
 .lv-trace__foot {
