@@ -2,7 +2,7 @@
 
 A keyboard-driven local web app for reviewing LLM outputs and labeling what worked or failed. Built for PMs starting evals; grows with you when you're ready for power tools.
 
-<!-- screenshot: hero -->
+![Trace Annotator labeling view: a list of traces on the left (some passed, some failed, some unlabeled), a single chat trace in the middle, and Pass / Fail buttons plus tag suggestions on the right](public/screenshots/hero-labeling.png)
 
 > From twenty traces an hour in a spreadsheet to more than two hundred. That number is not a guess. Hamel Husain reports the same multiplier from teams who built their own labeling tools: **"Teams with custom annotation tools iterate ~10x faster."**
 
@@ -25,15 +25,15 @@ When you ship an LLM-powered feature, you have to look at lots of real outputs t
 - **Label** Pass or Fail with one keystroke. Add free-text tags. Keys: `P` pass, `F` fail, `S` skip, arrows to navigate, `Cmd/Ctrl+Z` to undo.
 - **Export** your labels as JSONL or CSV when you are done.
 
-<!-- screenshot: wizard-autodetect -->
+![Wizard auto-detect step showing the confidence banner, file metadata, and first trace rendered as a preview before the user confirms](public/screenshots/wizard-autodetect.png)
 
 ## Who this is for
 
 PMs and domain experts running their first error-analysis pass. The course this tool grew out of is explicitly aimed at the same crowd ("AI Evals for Engineers & PMs"), and Hamel's framing for the role is: **"Empower domain experts to evaluate actual outcomes rather than technical implementation."** That is the audience this app is built around.
 
-If you are an engineer and want a more programmable surface, the experienced-mode toggle exposes batch labeling, custom JSON adapters, tool-call review, and similarity highlighting. The beginner experience stays untouched.
+If you are an engineer and want a more programmable surface, flip the "I'm experienced" toggle in Settings. It exposes batch labeling, custom JSON adapters, tool-call review, and similarity highlighting. The beginner experience stays untouched.
 
-<!-- screenshot: coaching-card -->
+![First-session coaching card explaining Pass/Fail and how tags work, rendered inside the right rail next to the trace](public/screenshots/coaching-card.png)
 
 ## Designed for flow
 
@@ -41,7 +41,7 @@ A core finding from the course: **"You must remove all friction from the process
 
 - One keystroke per label, not click + dropdown + Save.
 - The trace renders in its native format, so your brain does not waste cycles parsing JSON.
-- The tag chips on the bottom bar carry `[1]` `[2]` `[3]` `[4]` hints. One keypress applies a tag.
+- Pass / Fail buttons and the tag suggestions sit in the same right-hand column, so the eye does not jump between surfaces after a verdict. The top 9 suggestions carry `1`-`9` hotkeys; one keypress applies.
 - Progress and "minutes remaining" are always visible, so the session has a finish line.
 - `Cmd/Ctrl+Z` undoes the last label. Reversibility is non-negotiable when you are forming a taxonomy on the fly.
 
@@ -52,14 +52,14 @@ Full design rationale in [docs/ux-research-note.md](./docs/ux-research-note.md).
 Three releases shipped. Three lessons worth pulling forward (full set in [LESSONS.md](./LESSONS.md)):
 
 - **Reviewers find more issues than you should fix.** A four-specialist review of v2.0 produced 42 findings. Triaging by *real-world impact for this user* (solo PM, local-only, learning) cut it to 5 actual fixes. Reviewers calibrate for enterprise ship gates; you have to apply your own filter.
-- **Diagnostic errors are recoverable; generic errors are support tickets.** Replacing "got an unexpected value type" with "request is an object with keys: messages, try `request.messages`" turned the wizard from a dead end into a self-service path.
+- **Solve information architecture before placement.** When a UI question reads "where do these go?", check first whether a missing surface should be carrying them. Issue #55 started as "where do the displaced top-bar buttons go?" and converged on a kebab menu. Then `/explore` discovered the trace-list surface was missing entirely - adding it dissolved most of the placement question.
 - **Run debates on plans, not just finished work.** Running `/ask-gpt` and `/ask-gemini` on the v3 plan (before building) caught four refinements that would have required rework later. Cheaper to fix a plan than to rewrite a shipped feature.
 
 ## Design decisions you can poke at
 
 The judgment calls behind this tool are documented, not hand-waved. Each link below opens an artifact written before or during the work, not after.
 
-- **Locked design decisions** (75/25 layout, color choices, density): the table in [CLAUDE.md](./CLAUDE.md).
+- **Locked design decisions** (three-pane workspace, color tokens, hotkeys, density): the table in [CLAUDE.md](./CLAUDE.md).
 - **Anti-patterns I deliberately rejected** (raw spreadsheet rows, "give me a labeling UI" prompts, hidden progress bars): [CLAUDE.md - Anti-patterns to actively reject](./CLAUDE.md).
 - **What got cut from each release and why**: ["What was cut from v3 entirely"](./RELEASE-NOTES-v3.0.md#what-was-cut-from-v3-entirely) and v2.0's ["What's not in v2.0"](./RELEASE-NOTES-v2.0.md#whats-not-in-v20).
 - **The "tool grows with the user" framing**: [v3 release notes](./RELEASE-NOTES-v3.0.md).
@@ -70,7 +70,7 @@ For everyone: the full v1/v2.x labeling loop (wizard, keyboard labeling, coachin
 
 For experienced practitioners (after the toggle): batch labeling with one-click batch undo; a custom JSON adapter so the wizard skips its mapping step on saved file shapes; tool-call review (Right / Wrong / Skip per call, informational only); and similarity highlighting via TF-IDF + cosine.
 
-<!-- screenshot: experienced-batch -->
+<!-- screenshot: queue-batch -->
 
 Full v3.0 change list in [RELEASE-NOTES-v3.0.md](./RELEASE-NOTES-v3.0.md).
 
@@ -102,7 +102,7 @@ Real trace data is never committed to this repo and is gitignored by default. Fi
 
 ## How this was built
 
-Three releases, each shaped by an explicit explore -> plan -> execute -> review discipline. Each issue has a plan; each plan was debated by GPT and Gemini before execution; each release got a multi-specialist review pass. The commit history walks it forward issue by issue.
+Three releases, each shaped by an explicit explore -> plan -> execute -> review discipline. Each issue has a plan; each plan was debated by GPT and Gemini before execution; each release got a multi-specialist review pass. The commit history walks it forward issue by issue. The launch prep for this README also surfaced three real bugs ([#52](https://github.com/mayankmankhand/Observability/issues/52), [#58](https://github.com/mayankmankhand/Observability/issues/58), [#59](https://github.com/mayankmankhand/Observability/issues/59)). I would rather catch problems by trying to ship than by reading my own design notes.
 
 ## Roadmap
 
