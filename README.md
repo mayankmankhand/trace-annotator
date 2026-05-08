@@ -84,7 +84,9 @@ Full v3.0 change list in [RELEASE-NOTES-v3.0.md](./RELEASE-NOTES-v3.0.md).
 
 ## Install
 
-The fastest path is to paste [AGENT-SETUP.md](./AGENT-SETUP.md) into Claude or ChatGPT and ask it to set the app up on your machine. Otherwise:
+**Try it without cloning:** [trace-annotator.vercel.app](https://trace-annotator.vercel.app). No install, your data stays in your browser (IndexedDB), nothing is uploaded.
+
+To run locally instead, the fastest path is to paste [AGENT-SETUP.md](./AGENT-SETUP.md) into Claude or ChatGPT and ask it to set the app up on your machine. Otherwise:
 
 ```bash
 git clone https://github.com/mayankmankhand/trace-annotator.git
