@@ -2,6 +2,8 @@
 
 A keyboard-driven local web app for reviewing LLM outputs and labeling what worked or failed. Built for PMs starting evals; grows with you when you're ready for power tools.
 
+_Built while taking [Hamel Husain and Shreya Shankar's AI Evals for Engineers & PMs](https://maven.com/parlance-labs/evals)._
+
 ![Trace Annotator labeling view: a list of traces on the left (some passed, some failed, some unlabeled), a single chat trace in the middle, and Pass / Fail buttons plus tag suggestions on the right](public/screenshots/hero-labeling.png)
 
 > From twenty traces an hour in a spreadsheet to more than two hundred. That number is not a guess. Hamel Husain reports the same multiplier from teams who built their own labeling tools: **"Teams with custom annotation tools iterate ~10x faster."**
@@ -76,17 +78,17 @@ Full v3.0 change list in [RELEASE-NOTES-v3.0.md](./RELEASE-NOTES-v3.0.md).
 
 ## What v3.1 / v3.2 add
 
-**v3.1 (Quiet Notebook):** restyle to a warm-paper / muted-teal design system, with Newsreader serif for trace prose and a single consolidated tag input with `1`-`9` quick-apply hotkeys. Three new renderers (RAG, agent, summarizer). See [issue #53](https://github.com/mayankmankhand/Observability/issues/53).
+**v3.1 (Quiet Notebook):** restyle to a warm-paper / muted-teal design system, with Newsreader serif for trace prose and a single consolidated tag input with `1`-`9` quick-apply hotkeys. Three new renderers (RAG, agent, summarizer). See [issue #53](https://github.com/mayankmankhand/trace-annotator/issues/53).
 
-**v3.2 (three-pane workspace):** the default workspace becomes a 220px queue rail (left) plus the trace pane (center) plus the 380px sticky decision rail (right). Multi-select for batch labeling moves into the queue (hover checkbox + shift-click range; contextual action bar at the bottom). The top bar slims to file/template/progress plus a single ⋯ overflow menu for Find, Tags, Export, Undo/Redo, Settings, and Jump to next unlabeled. The bottom bar shrinks to centered Prev / Next. Right-rail headers and helper text get a contrast bump. Queue collapses to a 40px icon strip below 1280px and into a slide-over drawer below 1024px. See [issue #55](https://github.com/mayankmankhand/Observability/issues/55).
+**v3.2 (three-pane workspace):** the default workspace becomes a 220px queue rail (left) plus the trace pane (center) plus the 380px sticky decision rail (right). Multi-select for batch labeling moves into the queue (hover checkbox + shift-click range; contextual action bar at the bottom). The top bar slims to file/template/progress plus a single ⋯ overflow menu for Find, Tags, Export, Undo/Redo, Settings, and Jump to next unlabeled. The bottom bar shrinks to centered Prev / Next. Right-rail headers and helper text get a contrast bump. Queue collapses to a 40px icon strip below 1280px and into a slide-over drawer below 1024px. See [issue #55](https://github.com/mayankmankhand/trace-annotator/issues/55).
 
 ## Install
 
 The fastest path is to paste [AGENT-SETUP.md](./AGENT-SETUP.md) into Claude or ChatGPT and ask it to set the app up on your machine. Otherwise:
 
 ```bash
-git clone https://github.com/mayankmankhand/Observability.git
-cd Observability
+git clone https://github.com/mayankmankhand/trace-annotator.git
+cd trace-annotator
 npm install
 npm run dev
 ```
@@ -102,7 +104,7 @@ Real trace data is never committed to this repo and is gitignored by default. Fi
 
 ## How this was built
 
-Three releases, each shaped by an explicit explore -> plan -> execute -> review discipline. Each issue has a plan; each plan was debated by GPT and Gemini before execution; each release got a multi-specialist review pass. The commit history walks it forward issue by issue. The launch prep for this README also surfaced three real bugs ([#52](https://github.com/mayankmankhand/Observability/issues/52), [#58](https://github.com/mayankmankhand/Observability/issues/58), [#59](https://github.com/mayankmankhand/Observability/issues/59)). I would rather catch problems by trying to ship than by reading my own design notes.
+Three releases, each shaped by an explicit explore -> plan -> execute -> review discipline. Each issue has a plan; each plan was debated by GPT and Gemini before execution; each release got a multi-specialist review pass. The commit history walks it forward issue by issue. The launch prep for this README also surfaced three real bugs ([#52](https://github.com/mayankmankhand/trace-annotator/issues/52), [#58](https://github.com/mayankmankhand/trace-annotator/issues/58), [#59](https://github.com/mayankmankhand/trace-annotator/issues/59)). I would rather catch problems by trying to ship than by reading my own design notes.
 
 ## Roadmap
 

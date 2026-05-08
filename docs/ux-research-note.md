@@ -256,7 +256,7 @@ Plan: [plans/PLAN-issue-53.md](../plans/PLAN-issue-53.md). Source: `Visual/Desig
 
 ## 11. v3.2 amendments (issue #55)
 
-Plan: [plans/PLAN-issue-55.md](../plans/PLAN-issue-55.md). Issue: [#55](https://github.com/mayankmankhand/Observability/issues/55).
+Plan: [plans/PLAN-issue-55.md](../plans/PLAN-issue-55.md). Issue: [#55](https://github.com/mayankmankhand/trace-annotator/issues/55).
 
 v3.2 changes three things on the labeling view: the workspace shape (three-pane queue rail becomes the default, replacing the v3.1 two-pane), the chrome (top and bottom bars trim down, a single ⋯ overflow menu absorbs session tools), and the right-rail readability (darker ink across headers, body, and helper text plus a subtle background tint that anchors each section). The unifying thesis is that three-pane was always the intended workspace and v3.2 finally ships it.
 

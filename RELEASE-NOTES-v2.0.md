@@ -51,8 +51,8 @@ From there, label with the keyboard. The first 5 traces show coaching cards that
 Easiest path: paste [AGENT-SETUP.md](./AGENT-SETUP.md) into Claude or ChatGPT and let the agent set it up. Otherwise:
 
 ```
-git clone https://github.com/mayankmankhand/Observability.git
-cd Observability
+git clone https://github.com/mayankmankhand/trace-annotator.git
+cd trace-annotator
 npm install
 npm run dev
 ```

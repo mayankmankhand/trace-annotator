@@ -343,7 +343,7 @@ export function Wizard({
                 <p className="wz-step__hintMono">
                   No data leaves your browser. Supported shapes:{" "}
                   <a
-                    href="https://github.com/mayankmankhand/Observability/blob/main/docs/supported-inputs.md"
+                    href="https://github.com/mayankmankhand/trace-annotator/blob/main/docs/supported-inputs.md"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="wz-link"

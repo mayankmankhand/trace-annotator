@@ -27,7 +27,7 @@ If any of those are missing, stop and tell the user which ones to install. Do no
 ### Step 1: Clone the repo
 
 ```bash
-git clone https://github.com/mayankmankhand/Observability.git trace-annotator
+git clone https://github.com/mayankmankhand/trace-annotator.git
 cd trace-annotator
 ```
 
