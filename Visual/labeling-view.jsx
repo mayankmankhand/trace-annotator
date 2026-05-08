@@ -1,4 +1,4 @@
-// LabelingView — the main labeling workspace.
+// LabelingView - the main labeling workspace.
 // Two-pane: trace on the left (scrolls), decision rail on the right (sticky).
 // Top bar = progress + nav + session controls. Bottom = save status.
 
@@ -201,14 +201,14 @@ function LabelingView({
           )}
           {matching.length === 0 && (
             <span style={{ fontSize: 12, color: 'var(--ink-4)', fontStyle: 'italic' }}>
-              no matches — press Enter to create
+              no matches - press Enter to create
             </span>
           )}
         </div>
         <div style={{ fontSize: 11, color: 'var(--ink-4)', marginTop: 8, fontFamily: 'var(--mono)' }}>
           {filterQ
             ? <>type to filter · <kbd>Enter</kbd> to create new</>
-            : <>press <kbd>1</kbd>–<kbd>9</kbd> to apply · type to filter the rest</>}
+            : <>press <kbd>1</kbd>-<kbd>9</kbd> to apply · type to filter the rest</>}
         </div>
       </div>
 
@@ -219,7 +219,7 @@ function LabelingView({
         <textarea className="lv-note"
           value={trace?.note || ''}
           onChange={(e) => onSetNote(e.target.value)}
-          placeholder="What's wrong? (free text — write like a junior reviewer)" />
+          placeholder="What's wrong? (free text - write like a junior reviewer)" />
       </div>
 
       {coaching && idx < 5 && (
@@ -233,7 +233,7 @@ function LabelingView({
           <div className="lv-rail__label">similar traces <span style={{ marginLeft: 'auto', fontFamily: 'var(--mono)', fontSize: 10.5, color: 'var(--ink-4)' }}>3 found</span></div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {[
-              { id: 't_011', title: 'Refund — order #B-12092', sim: 0.91 },
+              { id: 't_011', title: 'Refund - order #B-12092', sim: 0.91 },
               { id: 't_023', title: 'Return policy confusion (chat)', sim: 0.84 },
               { id: 't_044', title: 'Late-window refund denied', sim: 0.79 },
             ].map((s) => (
@@ -300,7 +300,7 @@ function LabelingView({
 
 function CoachCard({ idx }) {
   const cards = [
-    { title: 'Welcome', body: "Read the trace, decide Pass or Fail, drop in any failure-mode tags that fit. Don't worry about a perfect taxonomy — patterns emerge later." },
+    { title: 'Welcome', body: "Read the trace, decide Pass or Fail, drop in any failure-mode tags that fit. Don't worry about a perfect taxonomy - patterns emerge later." },
     { title: 'Tags are flat', body: 'Type any phrase. There is no preset list. After 25 traces you will be prompted to merge similar tags.' },
     { title: 'You can revisit anything', body: 'Every decision is reversible. Use ← to go back, undo with ⌘Z. The audit log persists across sessions.' },
     { title: 'Keyboard first', body: 'P / F / S for verdict. T to add a tag. Left/Right arrow to navigate. U to jump to the next unlabeled.' },

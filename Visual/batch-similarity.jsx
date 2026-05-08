@@ -1,4 +1,4 @@
-// BatchView — experienced-mode batch labeling.
+// BatchView - experienced-mode batch labeling.
 // Replaces the trace pane with a multi-select queue when activated.
 
 function BatchView({ traces }) {
@@ -72,7 +72,7 @@ function BatchView({ traces }) {
   );
 }
 
-// SimilarityView — clusters of similar traces, experienced mode.
+// SimilarityView - clusters of similar traces, experienced mode.
 function SimilarityView() {
   const clusters = [
     {
@@ -80,8 +80,8 @@ function SimilarityView() {
       size: 18,
       tags: ['hallucinated-policy', 'wrong-tone'],
       examples: [
-        { id: 't_001', title: 'Refund request — order #A-88241', verdict: 'fail' },
-        { id: 't_011', title: 'Refund — order #B-12092', verdict: 'fail' },
+        { id: 't_001', title: 'Refund request - order #A-88241', verdict: 'fail' },
+        { id: 't_011', title: 'Refund - order #B-12092', verdict: 'fail' },
         { id: 't_023', title: 'Return policy confusion (chat)', verdict: 'fail' },
         { id: 't_044', title: 'Late-window refund denied', verdict: null },
       ],

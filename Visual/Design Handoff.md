@@ -1,17 +1,17 @@
-# Trace Annotator — Design Handoff
+# Trace Annotator - Design Handoff
 
 > Single-user, local, browser-based tool for reviewing LLM outputs and labeling pass/fail with free-text failure-mode tags. Optimized so a 200-trace session takes ~1 hour vs ~20/hour in a spreadsheet.
 
 ---
 
-## 1. Design system — "Quiet notebook"
+## 1. Design system - "Quiet notebook"
 
 One direction, applied everywhere.
 
-### Color tokens (CSS custom properties — copy verbatim)
+### Color tokens (CSS custom properties - copy verbatim)
 
 ```
---paper:    #faf8f4;   /* primary surface — warm off-white */
+--paper:    #faf8f4;   /* primary surface - warm off-white */
 --paper-2:  #f3efe7;   /* secondary surface (rail bg, hover) */
 --paper-3:  #ece7dc;   /* tertiary (kbd, chip bg) */
 --rule:     #e3ddd0;   /* hairlines */
@@ -42,7 +42,7 @@ One direction, applied everywhere.
 | Trace prose, headlines | **Newsreader** (serif) | 400 / 500 |
 | Keys, metadata, IDs, scores | **IBM Plex Mono** | 400 / 500 |
 
-Load via Google Fonts. Trace content always renders in the serif so reading the data is the focal act — not decorating the chrome.
+Load via Google Fonts. Trace content always renders in the serif so reading the data is the focal act - not decorating the chrome.
 
 ### Spacing & shape
 
@@ -53,14 +53,14 @@ Load via Google Fonts. Trace content always renders in the serif so reading the 
 
 ### Components defined (see CSS)
 
-- `.ta-chip` / `.ta-chip--applied` — pill for tags
-- `.verdict-btn[data-active=pass|fail|skip]` — tri-state verdict buttons
-- `.role-pill[data-role=user|assistant|system|tool]` — chat role labels
-- `kbd` — keyboard hint badges (Plex Mono)
-- `.lv-tag-cloud__chip` — suggestion chip with optional `.lv-tag-cloud__num` hotkey badge
-- `.coach-card`, `.milestone-card` — coaching surfaces (warm yellow tint)
-- `.rag-chunk` / `.rag-chunk--used` — retrieval chunks (dimmed unless used)
-- `.tool-block` — tool-call display
+- `.ta-chip` / `.ta-chip--applied` - pill for tags
+- `.verdict-btn[data-active=pass|fail|skip]` - tri-state verdict buttons
+- `.role-pill[data-role=user|assistant|system|tool]` - chat role labels
+- `kbd` - keyboard hint badges (Plex Mono)
+- `.lv-tag-cloud__chip` - suggestion chip with optional `.lv-tag-cloud__num` hotkey badge
+- `.coach-card`, `.milestone-card` - coaching surfaces (warm yellow tint)
+- `.rag-chunk` / `.rag-chunk--used` - retrieval chunks (dimmed unless used)
+- `.tool-block` - tool-call display
 
 ---
 
@@ -92,9 +92,9 @@ The decision rail never collapses; losing verdict / tag / note breaks the throug
 
 The four overlapping surfaces in v1 (free-text input, recent strip, bottom-bar quick-apply chips, datalist autocomplete) **collapse into one**:
 
-1. Single text input — type to add a brand-new tag (Enter creates it).
+1. Single text input - type to add a brand-new tag (Enter creates it).
 2. Same input filters the suggestion cloud below as you type.
-3. Suggestion cloud shows the top 9 tags by recency/count, each with a `1`–`9` hotkey badge. Press the digit to apply.
+3. Suggestion cloud shows the top 9 tags by recency/count, each with a `1`-`9` hotkey badge. Press the digit to apply.
 4. `+ N more` chip expands the full taxonomy. Filtering replaces the truncation.
 
 **Why:** one source of truth, predictable affordance, no visual duplication.
@@ -107,14 +107,14 @@ The four overlapping surfaces in v1 (free-text input, recent strip, bottom-bar q
 |---|---|
 | `P` / `F` / `S` | Pass / Fail / Skip |
 | `T` | Focus tag input |
-| `1`–`9` | Apply visible suggestion |
+| `1`-`9` | Apply visible suggestion |
 | `Left arrow` / `Right arrow` | Prev / Next |
 | `U` | Jump to next unlabeled |
 | `Ctrl K` | Find / jump-to-id |
 | `Ctrl Z` / `Ctrl Shift Z` | Undo / Redo |
 | `Esc` | Exit batch / dismiss modal |
 
-Mac users will see the same `Ctrl` labels — fine; the chord works as `⌘` on Mac browsers via `accelerator-key` semantics. Don't ship two label sets.
+Mac users will see the same `Ctrl` labels - fine; the chord works as `⌘` on Mac browsers via `accelerator-key` semantics. Don't ship two label sets.
 
 ---
 
@@ -136,7 +136,7 @@ Beginner experience by default; off by setting (not by user mode).
 
 - **First 5 traces:** inline coaching card in the rail. Topics in order: Welcome / Tags-are-flat / Reversibility / Keyboard / Quality-over-speed. Dismissible per-session and globally.
 - **Milestones at 25 / 50 / 100 traces:** a `MilestoneCard` prompts taxonomy review with stats (unique tags, used-once-only, near-duplicates).
-- Cards live **inside** the rail — they never block the trace.
+- Cards live **inside** the rail - they never block the trace.
 
 ---
 
@@ -144,10 +144,10 @@ Beginner experience by default; off by setting (not by user mode).
 
 Off by default. Beginner experience untouched for everyone else. When on:
 
-- **Batch labeling** — multi-select queue replaces trace pane; `Shift P` / `Shift F` / tag apply to all selected. Single-undo for the batch.
-- **Similarity** — clusters of similar unlabeled traces; click a cluster to review it as a filtered queue.
-- **Tool-call review** — per-call right/wrong/skip mark inside `.tool-block` (informational only).
-- **Custom JSON adapter** — declarative transform config so the load wizard skips field-mapping on saved shapes.
+- **Batch labeling** - multi-select queue replaces trace pane; `Shift P` / `Shift F` / tag apply to all selected. Single-undo for the batch.
+- **Similarity** - clusters of similar unlabeled traces; click a cluster to review it as a filtered queue.
+- **Tool-call review** - per-call right/wrong/skip mark inside `.tool-block` (informational only).
+- **Custom JSON adapter** - declarative transform config so the load wizard skips field-mapping on saved shapes.
 
 ---
 
@@ -159,7 +159,7 @@ Concrete rejections that follow from this:
 
 - No breadcrumbs on the labeling view.
 - No nested settings drawers; preferences live in one Settings sheet.
-- No toast notifications for routine saves — bottom-bar status indicator only.
+- No toast notifications for routine saves - bottom-bar status indicator only.
 - No modals while labeling (taxonomy / settings open as full-bleed overlays, not popups over the trace).
 
 ---
@@ -169,10 +169,10 @@ Concrete rejections that follow from this:
 Pack these (in this order) when you hand off:
 
 1. **This document** (`Design Handoff.md`).
-2. **`Trace Annotator.html`** — visual reference, all variants on the canvas.
-3. **`styles.css`** — the design tokens. Copy these verbatim into the production CSS.
-4. **`labeling-view.css`** + **`batch-similarity.css`** — component CSS.
-5. **`labeling-view.jsx`** + **`trace-renderers.jsx`** + **`batch-similarity.jsx`** — reference implementations of each surface.
-6. **`data.jsx`** — sample data shapes for chatbot / RAG / agent / summarizer. The engineer can use these as TypeScript-shape examples.
+2. **`Trace Annotator.html`** - visual reference, all variants on the canvas.
+3. **`styles.css`** - the design tokens. Copy these verbatim into the production CSS.
+4. **`labeling-view.css`** + **`batch-similarity.css`** - component CSS.
+5. **`labeling-view.jsx`** + **`trace-renderers.jsx`** + **`batch-similarity.jsx`** - reference implementations of each surface.
+6. **`data.jsx`** - sample data shapes for chatbot / RAG / agent / summarizer. The engineer can use these as TypeScript-shape examples.
 
 Skip: `design-canvas.jsx`, `tweaks-panel.jsx`, `Trace Annotator.html` script tags, sample HTML markup. Those are the canvas chrome.

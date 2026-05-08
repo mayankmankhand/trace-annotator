@@ -1,4 +1,4 @@
-// Trace renderers — chat, RAG, agent, summarizer.
+// Trace renderers - chat, RAG, agent, summarizer.
 // Each takes a trace and returns the body content for the trace pane.
 // Render style: minimal, generous whitespace, role pills as metadata,
 // content in serif (Newsreader) for prose-heavy turns and sans for chrome.
@@ -94,8 +94,8 @@ function RagTrace({ trace, dense }) {
             <div key={c.id} className={`rag-chunk${c.used ? ' rag-chunk--used' : ''}`}>
               <div className="rag-chunk__head">
                 <span className="rag-chunk__source" title="File path the retriever pulled this chunk from">{c.source}</span>
-                <span className="rag-chunk__score" title="Retriever similarity score (0–1). Higher = stronger match to the query.">match {c.score.toFixed(2)}</span>
-                {c.used && <span className="rag-chunk__used" title="The model's answer references this chunk — a sign the answer is grounded in retrieved context.">used in answer</span>}
+                <span className="rag-chunk__score" title="Retriever similarity score (0-1). Higher = stronger match to the query.">match {c.score.toFixed(2)}</span>
+                {c.used && <span className="rag-chunk__used" title="The model's answer references this chunk - a sign the answer is grounded in retrieved context.">used in answer</span>}
               </div>
               <div className="rag-chunk__text">{c.text}</div>
             </div>

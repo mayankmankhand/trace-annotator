@@ -49,7 +49,7 @@ Full design rationale in [docs/ux-research-note.md](./docs/ux-research-note.md).
 
 ## Lessons learned (with receipts)
 
-Three releases shipped. Three lessons worth pulling forward (full set in [LESSONS.md](./LESSONS.md)):
+Three releases shipped. Three lessons worth pulling forward:
 
 - **Reviewers find more issues than you should fix.** A four-specialist review of v2.0 produced 42 findings. Triaging by *real-world impact for this user* (solo PM, local-only, learning) cut it to 5 actual fixes. Reviewers calibrate for enterprise ship gates; you have to apply your own filter.
 - **Solve information architecture before placement.** When a UI question reads "where do these go?", check first whether a missing surface should be carrying them. Issue #55 started as "where do the displaced top-bar buttons go?" and converged on a kebab menu. Then `/explore` discovered the trace-list surface was missing entirely - adding it dissolved most of the placement question.

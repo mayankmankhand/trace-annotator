@@ -7,7 +7,7 @@ const SAMPLE_TRACES = [
     id: 't_001',
     kind: 'chat',
     source: 'support-chatbot · 2026-04-22',
-    title: 'Refund request — order #A‑88241',
+    title: 'Refund request - order #A‑88241',
     verdict: 'fail',
     tags: ['hallucinated-policy', 'wrong-tone'],
     note: 'Bot invents a 14-day window. Real policy is 30. Also gets pushy after the second turn.',
@@ -31,7 +31,7 @@ const SAMPLE_TRACES = [
     title: 'How do I rotate the API key?',
     verdict: 'fail',
     tags: ['ungrounded', 'missing-step'],
-    note: 'Answer mixes the v1 and v2 procedures. Step 3 is fabricated — no chunk mentions a "Confirm rotation" button.',
+    note: 'Answer mixes the v1 and v2 procedures. Step 3 is fabricated - no chunk mentions a "Confirm rotation" button.',
     edited: true,
     query: 'How do I rotate the API key for a production project without downtime?',
     chunks: [
@@ -64,12 +64,12 @@ const SAMPLE_TRACES = [
     id: 't_004',
     kind: 'summarizer',
     source: 'meeting-notes · 2026-04-20',
-    title: 'Q2 planning sync — eng leads',
+    title: 'Q2 planning sync - eng leads',
     verdict: null,
     tags: [],
     note: '',
     edited: false,
-    source_doc: `Q2 PLANNING SYNC — Apr 18\n\nAttendees: Priya (PM), Marcus (Eng), Lin (Design), Tomas (Data)\n\nMarcus opened by flagging that the migration off the legacy queue is now blocking three downstream teams. Original ETA was end of Q1; current estimate is mid-May. Priya pushed back: the search team specifically committed roadmap items contingent on this. Marcus owned the slip and proposed pulling Anika in part-time from infra.\n\nLin walked through the new onboarding flow. The first-run coaching cards landed well in usability tests (5/6 participants completed without help) but the empty-state copy on the templates screen confused everyone. She'll iterate before code-complete on May 6.\n\nTomas raised that the experiment dashboard is showing inconsistent numbers across regions — likely a timezone bug introduced last week. He's deprioritizing the new metric work to fix this; expects 2 days.\n\nDecisions:\n- Anika joins the queue migration through end of May. Marcus to formalize w/ infra lead.\n- Onboarding ships May 6; Lin owns copy fixes.\n- Tomas pauses metric work, fixes regions bug first.\n\nOpen questions:\n- Do we need to renegotiate the search team's Q2 commitments? Priya to follow up offline.\n- Is the Anika loan blocking anything on infra's side?`,
+    source_doc: `Q2 PLANNING SYNC - Apr 18\n\nAttendees: Priya (PM), Marcus (Eng), Lin (Design), Tomas (Data)\n\nMarcus opened by flagging that the migration off the legacy queue is now blocking three downstream teams. Original ETA was end of Q1; current estimate is mid-May. Priya pushed back: the search team specifically committed roadmap items contingent on this. Marcus owned the slip and proposed pulling Anika in part-time from infra.\n\nLin walked through the new onboarding flow. The first-run coaching cards landed well in usability tests (5/6 participants completed without help) but the empty-state copy on the templates screen confused everyone. She'll iterate before code-complete on May 6.\n\nTomas raised that the experiment dashboard is showing inconsistent numbers across regions - likely a timezone bug introduced last week. He's deprioritizing the new metric work to fix this; expects 2 days.\n\nDecisions:\n- Anika joins the queue migration through end of May. Marcus to formalize w/ infra lead.\n- Onboarding ships May 6; Lin owns copy fixes.\n- Tomas pauses metric work, fixes regions bug first.\n\nOpen questions:\n- Do we need to renegotiate the search team's Q2 commitments? Priya to follow up offline.\n- Is the Anika loan blocking anything on infra's side?`,
     answer: `Q2 planning sync covered three main topics:\n\n1. **Queue migration is slipping** to mid-May (was end of Q1). Marcus is pulling Anika from infra part-time to help. This blocks three downstream teams including search.\n\n2. **Onboarding flow** tested well (5/6 success) but empty-state copy needs iteration. Ships May 6.\n\n3. **Experiment dashboard** has a timezone bug from last week. Tomas pausing other work for 2 days to fix.\n\nKey decisions: Anika joins migration through May, onboarding ships May 6, dashboard bug takes priority over new metrics.`,
   },
   {
@@ -83,9 +83,9 @@ const SAMPLE_TRACES = [
     edited: false,
     messages: [
       { role: 'user', content: "I keep getting asked for MFA over and over and never get in" },
-      { role: 'assistant', content: "That sounds like a session loop. Quick check — are you on Safari, and have you cleared cookies for our domain in the last hour?" },
+      { role: 'assistant', content: "That sounds like a session loop. Quick check - are you on Safari, and have you cleared cookies for our domain in the last hour?" },
       { role: 'user', content: 'safari yes, cookies no' },
-      { role: 'assistant', content: "Try clearing cookies for app.acme.com specifically and signing in fresh. If the loop persists, this is a known Safari ITP interaction we're tracking — I can open a ticket for engineering with your account ID." },
+      { role: 'assistant', content: "Try clearing cookies for app.acme.com specifically and signing in fresh. If the loop persists, this is a known Safari ITP interaction we're tracking - I can open a ticket for engineering with your account ID." },
     ],
   },
   {
@@ -122,7 +122,7 @@ const SAMPLE_TRACES = [
 
 window.SAMPLE_TRACES = SAMPLE_TRACES;
 
-// Tag taxonomy — recent + suggested + counts.
+// Tag taxonomy - recent + suggested + counts.
 window.TAG_TAXONOMY = {
   recent: ['hallucinated-policy', 'ungrounded', 'wrong-tone', 'missing-step', 'unsafe-action'],
   suggested: [

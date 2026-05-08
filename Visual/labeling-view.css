@@ -450,7 +450,7 @@
 
 /* ───── variant tweaks ───── */
 
-/* B: editorial — wider trace, narrower header */
+/* B: editorial - wider trace, narrower header */
 .labeling-view[data-variant="B"] .lv-trace__head { padding: 28px 48px 18px; }
 .labeling-view[data-variant="B"] .lv-trace__body { padding: 0 48px 40px; max-width: 720px; }
 
