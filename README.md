@@ -6,7 +6,7 @@ A keyboard-driven local web app for reviewing LLM outputs and labeling what work
 
 > From twenty traces an hour in a spreadsheet to more than two hundred. That number is not a guess. Hamel Husain reports the same multiplier from teams who built their own labeling tools: **"Teams with custom annotation tools iterate ~10x faster."**
 
-<!-- screenshot: labeling-loop GIF -->
+<video src="public/screenshots/labeling-loop.mp4" controls width="800"></video>
 
 ## Why I built this
 
@@ -70,7 +70,7 @@ For everyone: the full v1/v2.x labeling loop (wizard, keyboard labeling, coachin
 
 For experienced practitioners (after the toggle): batch labeling with one-click batch undo; a custom JSON adapter so the wizard skips its mapping step on saved file shapes; tool-call review (Right / Wrong / Skip per call, informational only); and similarity highlighting via TF-IDF + cosine.
 
-<!-- screenshot: queue-batch -->
+![Experienced mode batch labeling: queue rail on the left with checkboxes ticked on rows 1 through 8, and a contextual action bar at the bottom of the queue showing 8 selected with bulk Pass all, Fail all, and Apply tag actions](public/screenshots/queue-batch.png)
 
 Full v3.0 change list in [RELEASE-NOTES-v3.0.md](./RELEASE-NOTES-v3.0.md).
 
