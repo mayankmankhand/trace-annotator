@@ -72,6 +72,12 @@ The "tool grows with the user" release. Same wedge as v1/v2 (teach the method as
 - Adapter pattern - repo-clone `adapter.ts` path (#16, companion to v3.0 JSON DSL)
 - SQLite storage backend (#32) - revisit only if v3.0 IndexedDB hits scale limits
 
+### v4 scope (roadmap)
+
+The "second pair of eyes" release. v1-v3 assume a single PM labeling alone; v4 opens the tool up to collaboration. This is a meaningfully bigger shift (multiple users, shared state, agreement metrics) that does not fit the single-reviewer framing of earlier versions, so it gets its own roadmap chapter.
+
+- Multi-annotator support for contested labels (#62) - second reviewer can weigh in on a labeled trace, side-by-side comparison, disagreement surfacing, inter-annotator agreement at session/dataset level
+
 ### Cut from v3 (closed during v3 planning)
 - Braintrust export (#17) - graduation path; contradicts "stay and grow" v3 framing
 - External platform integrations (#33) - same rationale as #17
