@@ -2,6 +2,8 @@
 
 A keyboard-driven local web app for reviewing LLM outputs and labeling what worked or failed. Built for PMs starting evals; grows with you when you're ready for power tools.
 
+**Try it in your browser:** [trace-annotator.vercel.app](https://trace-annotator.vercel.app). No install; your data stays in your browser and nothing is uploaded.
+
 _Built while taking [Hamel Husain and Shreya Shankar's AI Evals for Engineers & PMs](https://maven.com/parlance-labs/evals)._
 
 ![Trace Annotator labeling view: a list of traces on the left (some passed, some failed, some unlabeled), a single chat trace in the middle, and Pass / Fail buttons plus tag suggestions on the right](public/screenshots/hero-labeling.png)
@@ -116,3 +118,7 @@ Three releases, each shaped by an explicit explore -> plan -> execute -> review 
 ## License
 
 MIT, see [LICENSE](LICENSE).
+
+---
+
+Built by [Mayank Mankhand](https://www.linkedin.com/in/mayankmankhand/), AI product manager. More at [github.com/mayankmankhand](https://github.com/mayankmankhand).
