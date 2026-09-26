@@ -1,6 +1,6 @@
 # Trace Annotator
 
-A keyboard-driven local web app for reviewing LLM outputs and labeling what worked or failed. Built for PMs starting evals; grows with you when you're ready for power tools.
+A keyboard-driven web app for reviewing LLM outputs and labeling what worked or failed. Built for PMs starting evals; grows with you when you're ready for power tools.
 
 **Try it in your browser:** [trace-annotator.vercel.app](https://trace-annotator.vercel.app). No install; your data stays in your browser and nothing is uploaded.
 
